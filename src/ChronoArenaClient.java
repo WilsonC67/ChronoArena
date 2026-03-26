@@ -1,13 +1,35 @@
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
+import java.awt.event.*;
+import java.io.*;
+import java.net.*;
 
-public class ChronoArenaClient extends JFrame {
+public class ChronoArenaClient extends JFrame implements Runnable {
 
-    private GameClient gameClient;
+    private Socket tcpSocket;
+    private DatagramSocket udpSocket;
+    private String serverIp;
+    private int udpPort;
+    private int localPlayerId;
+    private long udpSeq = 0;
 
-    public ChronoArenaClient(GameClient gameClient) {
+    // constructor called by gameclient
+    public ChronoArenaClient(Socket tcpSocket, DatagramSocket udpSocket, String serverIp, int udpPort, int playerId) {
+        this.tcpSocket = tcpSocket;
+        this.udpSocket = udpSocket;
+        this.serverIp = serverIp;
+        this.udpPort = udpPort;
+        this.localPlayerId = playerId;
+    }
+
+    public ChronoArenaClient() {}
+
+    @Override
+    public void run() {
+        SwingUtilities.invokeLater(this::buildUI);
+    }
+
+    private void buildUI() {
         setTitle("ChronoArena");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setFocusable(true);
@@ -54,7 +76,7 @@ public class ChronoArenaClient extends JFrame {
             scoreLbl.setBounds(690 + i * 52, 10, 46, 28);
             hudBar.add(scoreLbl);
         }
-        
+
         JLabel scoreLbl = new JLabel("SCORE");
         scoreLbl.setFont(new Font("SansSerif", Font.BOLD, 12));
         scoreLbl.setForeground(Color.LIGHT_GRAY);
@@ -66,7 +88,6 @@ public class ChronoArenaClient extends JFrame {
         sidebar.setPreferredSize(new Dimension(160, 600));
         sidebar.setBackground(new Color(30, 30, 42));
 
-        // exit
         JButton exitBtn = makeStyledButton("EXIT", new Color(180, 50, 50));
         exitBtn.setBounds(38, 10, 80, 30);
         sidebar.add(exitBtn);
@@ -78,22 +99,58 @@ public class ChronoArenaClient extends JFrame {
 
         JButton dashBtn = makeStyledButton("DASH", new Color(60, 160, 80));
         dashBtn.setBounds(170, 8, 100, 36);
+        dashBtn.addActionListener(e -> sendUDP("ACTION " + localPlayerId + " DASH " + udpSeq++));
         actionBar.add(dashBtn);
 
         JButton tagBtn = makeStyledButton("TAG", new Color(200, 140, 30));
         tagBtn.setBounds(280, 8, 100, 36);
+        tagBtn.addActionListener(e -> sendUDP("ACTION " + localPlayerId + " TAG " + udpSeq++));
         actionBar.add(tagBtn);
 
         // general layout
         setLayout(new BorderLayout());
-        add(hudBar, BorderLayout.NORTH);
-        add(sidebar, BorderLayout.WEST);
+        add(hudBar,    BorderLayout.NORTH);
+        add(sidebar,   BorderLayout.WEST);
         add(gamePanel, BorderLayout.CENTER);
         add(actionBar, BorderLayout.SOUTH);
+
+        setupKeyListeners();
 
         pack();
         setLocationRelativeTo(null);
         setVisible(true);
+    }
+
+    private void setupKeyListeners() {
+        JComponent root = getRootPane();
+        InputMap  im = root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        ActionMap am = root.getActionMap();
+
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_UP,    0), "UP");
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN,  0), "DOWN");
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT,  0), "LEFT");
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, 0), "RIGHT");
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_W,     0), "UP");
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_S,     0), "DOWN");
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_A,     0), "LEFT");
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_D,     0), "RIGHT");
+
+        am.put("UP",    new AbstractAction() { public void actionPerformed(ActionEvent e) { sendUDP("MOVE " + localPlayerId + " 0 -1 " + udpSeq++); } });
+        am.put("DOWN",  new AbstractAction() { public void actionPerformed(ActionEvent e) { sendUDP("MOVE " + localPlayerId + " 0 1 "  + udpSeq++); } });
+        am.put("LEFT",  new AbstractAction() { public void actionPerformed(ActionEvent e) { sendUDP("MOVE " + localPlayerId + " -1 0 " + udpSeq++); } });
+        am.put("RIGHT", new AbstractAction() { public void actionPerformed(ActionEvent e) { sendUDP("MOVE " + localPlayerId + " 1 0 "  + udpSeq++); } });
+    }
+
+    private void sendUDP(String message) {
+        if (udpSocket == null) return;
+        try {
+            byte[] data = message.getBytes();
+            DatagramPacket pkt = new DatagramPacket(
+                    data, data.length, InetAddress.getByName(serverIp), udpPort);
+            udpSocket.send(pkt);
+        } catch (IOException e) {
+            System.err.println("[UDP] Send failed: " + e.getMessage());
+        }
     }
 
     private JButton makeStyledButton(String text, Color bg) {
@@ -113,5 +170,10 @@ public class ChronoArenaClient extends JFrame {
         btn.setBorderPainted(false);
         btn.setFocusPainted(false);
         return btn;
+    }
+
+    public static void main(String[] args) {
+        ChronoArenaClient client = new ChronoArenaClient();
+        new Thread(client).start();
     }
 }
