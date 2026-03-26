@@ -32,8 +32,18 @@ public class ChronoArenaClient extends JFrame implements Runnable {
     private void buildUI() {
         setTitle("ChronoArena");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setFocusable(true);
         setResizable(false);
         setBackground(Color.BLACK);
+
+        //key listeners to read user input
+        addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                int key = e.getKeyCode();
+                gameClient.sendPressed(key);
+            }
+        });
 
         GamePanel gamePanel = new GamePanel();
 
