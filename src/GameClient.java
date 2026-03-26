@@ -39,6 +39,28 @@ public class GameClient {
         datagramSocket.send(outgoingPacket);
     }
 
+    public void recieveTCPMessages(){
+        new Thread(new Runnable(){
+            @Override
+            public void run(){
+                String msgFromServer;
+
+                try {
+                    while(socket.isConnected()){
+                    msgFromServer = dataInputStream.readUTF();
+
+                    //used for testing what TCP messages are recieved
+                    //can delete later
+                    System.out.println(msgFromServer);
+                }
+                } catch (IOException e) {
+                    System.out.println("ERROR IN RECIEVING TCP MESSAGE FROM SERVER");
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+    }
+
     //reads input from the ChronoArenaClient class and sends a UDP message with their key input to the server
     public void sendPressed(int key){
         switch (key) {
@@ -101,6 +123,10 @@ public class GameClient {
             DatagramSocket datagramSocket = new DatagramSocket();
         
             GameClient gameClient = new GameClient(socket, datagramSocket);
+            
+            //sends a message to the server that a new player has connected
+            gameClient.dataOutputStream.writeUTF("PLAYER_CONNECT");
+            gameClient.dataOutputStream.flush();
 
             //runs the ChronoArenaClient in the this class
             SwingUtilities.invokeLater(() -> new ChronoArenaClient(gameClient)); // pass client in
