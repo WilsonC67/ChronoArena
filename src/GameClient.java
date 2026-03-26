@@ -61,62 +61,6 @@ public class GameClient {
         }).start();
     }
 
-    //reads input from the ChronoArenaClient class and sends a UDP message with their key input to the server
-    public void sendPressed(int key){
-        switch (key) {
-            case KeyEvent.VK_W:
-                System.out.println("W");
-
-                try {
-                    InetAddress address = InetAddress.getByName(SERVER_IP);
-                    sendUDP("W", address, UDP_PORT);
-                } catch (Exception e) {
-                }
-
-                break;
-
-            case KeyEvent.VK_S:
-                System.out.println("S");
-                try {
-                    InetAddress address = InetAddress.getByName(SERVER_IP);
-                    sendUDP("S", address, UDP_PORT);
-                } catch (Exception e) {
-                }
-
-                break;
-
-            case KeyEvent.VK_A:
-                System.out.println("A");
-                try {
-                    InetAddress address = InetAddress.getByName(SERVER_IP);
-                    sendUDP("A", address, UDP_PORT);
-                } catch (Exception e) {
-                }
-
-                break;
-            case KeyEvent.VK_D:
-                System.out.println("D");
-                try {
-                    InetAddress address = InetAddress.getByName(SERVER_IP);
-                    sendUDP("D", address, UDP_PORT);
-                } catch (Exception e) {
-                }
-
-                break;
-            case KeyEvent.VK_SPACE:
-                System.out.println("SPACE");
-                try {
-                    InetAddress address = InetAddress.getByName(SERVER_IP);
-                    sendUDP("SPACE", address, UDP_PORT);
-                } catch (Exception e) {
-                }
-
-                break;
-            default:
-                break;
-        }
-    }
-
     public static void main(String[] args) {
         try {
             Socket socket = new Socket(SERVER_IP, TCP_PORT);
@@ -128,8 +72,6 @@ public class GameClient {
             gameClient.dataOutputStream.writeUTF("PLAYER_CONNECT");
             gameClient.dataOutputStream.flush();
 
-            //runs the ChronoArenaClient in the this class
-            SwingUtilities.invokeLater(() -> new ChronoArenaClient(gameClient)); // pass client in
         } catch (IOException e) {
             e.printStackTrace();
         }
