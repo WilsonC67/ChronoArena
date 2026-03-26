@@ -1,13 +1,27 @@
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 
 public class ChronoArenaClient extends JFrame {
 
-    public ChronoArenaClient() {
+    private GameClient gameClient;
+
+    public ChronoArenaClient(GameClient gameClient) {
         setTitle("ChronoArena");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setFocusable(true);
         setResizable(false);
         setBackground(Color.BLACK);
+
+        //key listeners to read user input
+        addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                int key = e.getKeyCode();
+                gameClient.sendPressed(key);
+            }
+        });
 
         GamePanel gamePanel = new GamePanel();
 
@@ -99,9 +113,5 @@ public class ChronoArenaClient extends JFrame {
         btn.setBorderPainted(false);
         btn.setFocusPainted(false);
         return btn;
-    }
-
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new ChronoArenaClient());
     }
 }
