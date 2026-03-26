@@ -12,6 +12,8 @@ public class ChronoArenaClient extends JFrame implements Runnable {
     private int udpPort;
     private int localPlayerId;
     private long udpSeq = 0;
+    private DataOutputStream dataOutputStream;
+    private DataInputStream dataInputStream;
 
     // constructor called by gameclient
     public ChronoArenaClient(Socket tcpSocket, DatagramSocket udpSocket, String serverIp, int udpPort, int playerId) {
@@ -161,6 +163,28 @@ public class ChronoArenaClient extends JFrame implements Runnable {
         btn.setBorderPainted(false);
         btn.setFocusPainted(false);
         return btn;
+    }
+
+    public void recieveTCPMessages(){
+        new Thread(new Runnable(){
+            @Override
+            public void run(){
+                String msgFromServer;
+
+                try {
+                    while(tcpSocket.isConnected()){
+                    msgFromServer = dataInputStream.readUTF();
+
+                    //used for testing what TCP messages are recieved
+                    //can delete later
+                    System.out.println(msgFromServer);
+                }
+                } catch (IOException e) {
+                    System.out.println("ERROR IN RECIEVING TCP MESSAGE FROM SERVER");
+                    e.printStackTrace();
+                }
+            }
+        }).start();
     }
 
     public static void main(String[] args) {
