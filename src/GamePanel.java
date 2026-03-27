@@ -1,12 +1,18 @@
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.List;
 
-public class GamePanel extends JPanel {
+public class GamePanel extends JPanel implements Runnable {
 
     // general grid layout (grid, color, etc)
-    private static final int TILE = 50;
-    private static final int COLS = 15;
-    private static final int ROWS = 12;
+    private static final int TILE = PropertyFileReader.getTileSize();
+    private static final int COLS = PropertyFileReader.getColNum();
+    private static final int ROWS = PropertyFileReader.getRowNum();
 
     private static final Color TILE_A = new Color(210, 213, 220);
     private static final Color TILE_B = new Color(195, 198, 207);
@@ -16,6 +22,8 @@ public class GamePanel extends JPanel {
     private static final Color COL_CONTROLLED = new Color(40, 160, 60);
     private static final Color COL_UNCLAIMED = new Color(160, 140, 60);
 
+    private static final int TICK_RATE = 20;
+
     // animation states
     private int tick = 0;
     private float tagAlpha = 1f;
@@ -23,14 +31,65 @@ public class GamePanel extends JPanel {
 
     public GamePanel() {
         setPreferredSize(new Dimension(COLS * TILE, ROWS * TILE));
+        setSize(COLS * TILE, ROWS * TILE);
         setFocusable(true);
+    }
 
-        // animation timer (30fps)
-        new Timer(33, e -> {
+    // list of clients to broadcast frames to
+    private final List<ClientHandler> clients = new CopyOnWriteArrayList<>();
+
+    // register/remove clients
+    public void addClient(ClientHandler client) { clients.add(client); }
+    public void removeClient(ClientHandler client) { clients.remove(client); }
+
+    // game loop thread
+    @Override
+    public void run() {
+        long tickDuration = 1000 / TICK_RATE;
+        while (!Thread.currentThread().isInterrupted()) {
+            long start = System.currentTimeMillis();
+
             tick++;
             if (showTag) tagAlpha = 0.6f + 0.4f * (float) Math.abs(Math.sin(tick * 0.1));
-            repaint();
-        }).start();
+
+            // render and broadcast
+            BufferedImage frame = renderToImage();
+            broadcastFrame(frame);
+
+            long elapsed = System.currentTimeMillis() - start;
+            long sleep = tickDuration - elapsed;
+            if (sleep > 0) {
+                try { Thread.sleep(sleep); }
+                catch (InterruptedException e) { break; }
+            }
+        }
+    }
+
+    // renders the panel to a BufferedImage without needing it displayed on screen
+    public BufferedImage renderToImage() {
+        BufferedImage image = new BufferedImage(COLS * TILE, ROWS * TILE, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        drawGrid(g);
+        drawZones(g);
+        if (showTag) drawTagPopup(g);
+        g.dispose();
+        return image;
+    }
+
+    //encodes and sends to all clients
+    private void broadcastFrame(BufferedImage frame) {
+        try {
+            ByteArrayOutputStream arrayOutputStream = new ByteArrayOutputStream();
+            ImageIO.write(frame, "jpg", arrayOutputStream);
+            byte[] data = arrayOutputStream.toByteArray();
+            for (ClientHandler client : clients) {
+                client.sendFrame(data);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
