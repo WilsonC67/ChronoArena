@@ -38,7 +38,7 @@ public class ChronoArenaClient extends JFrame implements Runnable {
         setResizable(false);
         setBackground(Color.BLACK);
 
-        GamePanel gamePanel = new GamePanel();
+        DisplayPanel displayPanel = new DisplayPanel();
 
         // HUD bar
         JPanel hudBar = new JPanel(null);
@@ -104,7 +104,7 @@ public class ChronoArenaClient extends JFrame implements Runnable {
         setLayout(new BorderLayout());
         add(hudBar,    BorderLayout.NORTH);
         add(sidebar,   BorderLayout.WEST);
-        add(gamePanel, BorderLayout.CENTER);
+        add(displayPanel, BorderLayout.CENTER);
         add(actionBar, BorderLayout.SOUTH);
 
         setupKeyListeners();
