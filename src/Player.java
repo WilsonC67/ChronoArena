@@ -9,7 +9,7 @@ public class Player implements Serializable {
     public static final int SPEED_BOOST_DURATION_TICKS = 100;  // 5 seconds
     public static final int FREEZE_POINT_PENALTY = 10;
 
-    public final String id;
+    public final int id;
     public String name;
 
     // Position on the tile grid
@@ -22,7 +22,8 @@ public class Player implements Serializable {
     public boolean frozen;
     public int frozenTicksLeft;
 
-    public boolean hasWeapon;   // holds the freeze-ray
+    public boolean hasWeapon;   // holds the GUN — can freeze nearby opponents once
+    public boolean hasShield;   // holds the SHIELD — absorbs one incoming freeze attack
     public boolean speedBoost;
     public int speedBoostTicksLeft;
 
@@ -33,7 +34,7 @@ public class Player implements Serializable {
     // Last accepted UDP sequence number — rejects duplicates and stale out-of-order packets
     private int lastAcceptedSeq;
 
-    public Player(String id, String name, int startX, int startY) {
+    public Player(int id, String name, int startX, int startY) {
         this.id = id;
         this.name = name;
         this.x = startX;
@@ -70,11 +71,20 @@ public class Player implements Serializable {
         }
     }
 
-    /** Apply freeze effect and deduct points. */
+    /** Apply freeze effect and deduct points. Shield absorbs it if active. */
     public void applyFreeze() {
+        if (hasShield) {
+            hasShield = false; // shield consumed, freeze blocked
+            return;
+        }
         frozen = true;
         frozenTicksLeft = FREEZE_DURATION_TICKS;
         score = Math.max(0, score - FREEZE_POINT_PENALTY);
+    }
+
+    /** Apply shield — absorbs the next incoming freeze attack. */
+    public void applyShield() {
+        hasShield = true;
     }
 
     /** Apply speed boost effect. */
