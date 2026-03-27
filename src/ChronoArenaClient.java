@@ -43,7 +43,7 @@ public class ChronoArenaClient extends JFrame implements Runnable {
         setResizable(false);
         setBackground(Color.BLACK);
 
-        GamePanel gamePanel = new GamePanel();
+        DisplayPanel displayPanel = new DisplayPanel();
 
         // HUD bar 
         JPanel hudBar = new JPanel(null);

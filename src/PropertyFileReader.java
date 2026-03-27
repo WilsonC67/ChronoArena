@@ -83,5 +83,68 @@ public class PropertyFileReader {
         }
         return Integer.parseInt(port);
     }
+
+    public static int getTileSize() {
+        Properties prop = new Properties();
+        String tileSize = "";
+        try (InputStream input = PropertyFileReader.class.getClassLoader().getResourceAsStream("config.properties")) {
+            if (input == null) {
+                System.out.println("Sorry, unable to find config.properties");
+                return Integer.parseInt(tileSize);
+            }
+
+            prop.load(input);
+            tileSize = prop.getProperty("tile.size");
+
+            if (tileSize != null) {
+                tileSize= tileSize.trim();
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        return Integer.parseInt(tileSize);
+    }
+
+    public static int getColNum() {
+        Properties prop = new Properties();
+        String colNum = "";
+        try (InputStream input = PropertyFileReader.class.getClassLoader().getResourceAsStream("config.properties")) {
+            if (input == null) {
+                System.out.println("Sorry, unable to find config.properties");
+                return Integer.parseInt(colNum);
+            }
+
+            prop.load(input);
+            colNum = prop.getProperty("column.num");
+
+            if (colNum != null) {
+                colNum = colNum.trim();
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        return Integer.parseInt(colNum);
+    }
+
+    public static int getRowNum() {
+        Properties prop = new Properties();
+        String rowNum = "";
+        try (InputStream input = PropertyFileReader.class.getClassLoader().getResourceAsStream("config.properties")) {
+            if (input == null) {
+                System.out.println("Sorry, unable to find config.properties");
+                return Integer.parseInt(rowNum);
+            }
+
+            prop.load(input);
+            rowNum = prop.getProperty("row.num");
+
+            if (rowNum != null) {
+                rowNum = rowNum.trim();
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        return Integer.parseInt(rowNum);
+    }
     
 }
