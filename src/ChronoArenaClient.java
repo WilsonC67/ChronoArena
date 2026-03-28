@@ -21,6 +21,13 @@ public class ChronoArenaClient extends JFrame implements Runnable {
     // the joystick panel (for updates)
     private JoystickPanel joystick;
 
+    // zone owner labels + capture bars
+    private JLabel[] zoneOwnerLabels = new JLabel[3];
+    private JPanel[] zoneProgressBars = new JPanel[3];
+
+    // item held indicator
+    private JLabel itemHeldLabel;
+
     public ChronoArenaClient(Socket tcpSocket, DatagramSocket udpSocket, String serverIp, int udpPort, int playerId) {
         this.tcpSocket = tcpSocket;
         this.udpSocket = udpSocket;
@@ -121,6 +128,47 @@ public class ChronoArenaClient extends JFrame implements Runnable {
         tagBtn.addActionListener(e -> sendUDP("ACTION " + localPlayerId + " TAG " + udpSeq++));
         actionBar.add(tagBtn);
 
+        // zone panels (shows owner of zone and capture bar)
+        String[] zoneNames = {"ZONE A", "ZONE B", "ZONE C"};
+        for (int i = 0; i < 3; i++) {
+            int bx = 395 + i * 120;
+
+            JLabel zName = new JLabel(zoneNames[i], SwingConstants.CENTER);
+            zName.setFont(new Font("SansSerif", Font.BOLD, 10));
+            zName.setForeground(new Color(150, 155, 170));
+            zName.setBounds(bx, 3, 110, 14);
+            actionBar.add(zName);
+
+            zoneOwnerLabels[i] = new JLabel("---", SwingConstants.CENTER);
+            zoneOwnerLabels[i].setFont(new Font("SansSerif", Font.BOLD, 11));
+            zoneOwnerLabels[i].setForeground(new Color(120, 125, 145));
+            zoneOwnerLabels[i].setBounds(bx, 17, 110, 16);
+            actionBar.add(zoneOwnerLabels[i]);
+
+            JPanel barBg = new JPanel(null);
+            barBg.setBackground(new Color(45, 48, 60));
+            barBg.setBounds(bx, 36, 110, 8);
+            actionBar.add(barBg);
+
+            zoneProgressBars[i] = new JPanel();
+            zoneProgressBars[i].setBackground(new Color(80, 140, 255));
+            zoneProgressBars[i].setBounds(0, 0, 0, 8);
+            barBg.add(zoneProgressBars[i]);
+        }
+
+        // holding item indicator
+        JLabel itemTitle = new JLabel("HOLDING", SwingConstants.CENTER);
+        itemTitle.setFont(new Font("SansSerif", Font.BOLD, 9));
+        itemTitle.setForeground(new Color(120, 125, 145));
+        itemTitle.setBounds(760, 6, 80, 14);
+        actionBar.add(itemTitle);
+
+        itemHeldLabel = new JLabel("NONE", SwingConstants.CENTER);
+        itemHeldLabel.setFont(new Font("SansSerif", Font.BOLD, 13));
+        itemHeldLabel.setForeground(new Color(120, 125, 145));
+        itemHeldLabel.setBounds(755, 20, 90, 26);
+        actionBar.add(itemHeldLabel);
+
         // general layout
         setLayout(new BorderLayout());
         add(hudBar, BorderLayout.NORTH);
@@ -180,6 +228,39 @@ public class ChronoArenaClient extends JFrame implements Runnable {
         am.put("DOWN_R", new AbstractAction() { public void actionPerformed(ActionEvent e) { holdDown = false; joystick.repaint(); }});
         am.put("LEFT_R", new AbstractAction() { public void actionPerformed(ActionEvent e) { holdLeft = false; joystick.repaint(); }});
         am.put("RIGHT_R", new AbstractAction() { public void actionPerformed(ActionEvent e) { holdRight = false; joystick.repaint(); }});
+    }
+
+    // called by server integration
+    public void updateZone(int zoneIndex, String ownerName, double captureProgress) {
+        SwingUtilities.invokeLater(() -> {
+            JLabel lbl = zoneOwnerLabels[zoneIndex];
+            JPanel bar = zoneProgressBars[zoneIndex];
+            if (ownerName == null || ownerName.isEmpty()) {
+                lbl.setText("---");
+                lbl.setForeground(new Color(120, 125, 145));
+                bar.setBackground(new Color(80, 140, 255));
+            } else {
+                lbl.setText(ownerName);
+                lbl.setForeground(new Color(100, 220, 100));
+                bar.setBackground(new Color(60, 180, 80));
+            }
+            int fillW = (int)(110 * Math.min(1.0, Math.max(0.0, captureProgress)));
+            bar.setBounds(0, 0, fillW, 8);
+            bar.getParent().repaint();
+        });
+    }
+
+    // called by server integration
+    public void updateItemHeld(String itemType) {
+        SwingUtilities.invokeLater(() -> {
+            switch (itemType) {
+                case "GUN": itemHeldLabel.setText("GUN"); itemHeldLabel.setForeground(new Color(255, 100, 100)); break;
+                case "SHIELD": itemHeldLabel.setText("SHIELD"); itemHeldLabel.setForeground(new Color(100, 160, 255)); break;
+                case "SPEED_BOOST": itemHeldLabel.setText("SPEED"); itemHeldLabel.setForeground(new Color(100, 220, 100)); break;
+                case "ENERGY": itemHeldLabel.setText("ENERGY"); itemHeldLabel.setForeground(new Color(255, 200, 40));  break;
+                default: itemHeldLabel.setText("NONE"); itemHeldLabel.setForeground(new Color(120, 125, 145)); break;
+            }
+        });
     }
 
     private void sendUDP(String message) {
