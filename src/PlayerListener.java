@@ -25,10 +25,18 @@ public class PlayerListener implements Runnable {
     private static final int BUFFER_SIZE     = 512;
     private static final int SWEEP_INTERVAL  = 10_000;
 
+    private final ServerUDPQueue packetQueue;
+    private volatile int currentTick = 0; // incremented by GameLogic each tick
+
     private final PlayerRegistry registry;
 
-    public PlayerListener(PlayerRegistry registry) {
-        this.registry = registry;
+    public PlayerListener(PlayerRegistry registry, ServerUDPQueue packetQueue) {
+        this.registry    = registry;
+        this.packetQueue = packetQueue;
+    }
+
+    public void setCurrentTick(int tick) { 
+        this.currentTick = tick; 
     }
 
     @Override
@@ -72,29 +80,36 @@ public class PlayerListener implements Runnable {
      */
     private void parseAndUpdate(String sourceIp, String payload) {
         try {
-            String[] parts = payload.split(",", -1); // -1 keeps trailing empties
+            String[] parts = payload.split(",", -1);
             if (parts.length < 5) {
-                System.err.println("[PlayerListener] Malformed packet: " + payload);
+                System.err.println("Malformed packet: " + payload);
                 return;
             }
 
-            int    playerId = Integer.parseInt(parts[0].trim());
-            int    tcpPort  = Integer.parseInt(parts[1].trim());
-            PlayerActionEnum action = PlayerActionEnum.fromString(parts[2].trim());
-            float  x        = Float.parseFloat(parts[3].trim());
-            float  y        = Float.parseFloat(parts[4].trim());
-            String extra    = (parts.length >= 6) ? parts[5].trim() : "";
+            int              playerId = Integer.parseInt(parts[0].trim());
+            int              tcpPort  = Integer.parseInt(parts[1].trim());
+            PlayerActionEnum action   = PlayerActionEnum.fromString(parts[2].trim());
+            float            x        = Float.parseFloat(parts[3].trim());
+            float            y        = Float.parseFloat(parts[4].trim());
+            String           extra    = (parts.length >= 6) ? parts[5].trim() : "";
+            // seq is parts[6] if present, else 0
+            int seq = (parts.length >= 7) ? Integer.parseInt(parts[6].trim()) : 0;
 
             if (action == null) {
-                System.err.printf("[PlayerListener] Unknown action '%s' from player %d%n",
+                System.err.printf("Unknown action '%s' from player %d%n",
                         parts[2], playerId);
                 return;
             }
 
-            registry.update(playerId, sourceIp, tcpPort, action, x, y, extra);
+            // Register the player on first contact so the registry always has them
+            registry.register(playerId, sourceIp, tcpPort);
+
+            PlayerAction pa = new PlayerAction(playerId, action.name(),
+                    System.currentTimeMillis(), seq);
+            packetQueue.enqueue(pa, currentTick);
 
         } catch (NumberFormatException e) {
-            System.err.println("[PlayerListener] Parse error for '" + payload + "': " + e.getMessage());
+            System.err.println("Parse error: " + e.getMessage());
         }
     }
 
