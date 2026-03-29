@@ -25,9 +25,6 @@ public class ChronoArenaClient extends JFrame implements Runnable {
     private JLabel[] zoneOwnerLabels = new JLabel[3];
     private JPanel[] zoneProgressBars = new JPanel[3];
 
-    // item held indicator
-    private JLabel itemHeldLabel;
-
     // player info card labels (updated by server)
     private JLabel cardNameLabel;
     private JLabel cardHpLabel;
@@ -307,15 +304,6 @@ public class ChronoArenaClient extends JFrame implements Runnable {
 
         buildZonePanels(bar);
 
-        JLabel holdingTitle = makeLabel("HOLDING", Style.FONT_XXS_B, Style.TEXT_MUTED, SwingConstants.CENTER);
-        holdingTitle.setBounds(760, 6, 80, 14);
-        bar.add(holdingTitle);
-
-        itemHeldLabel = makeLabel("NONE", Style.FONT_NORM, Style.TEXT_MUTED, SwingConstants.CENTER);
-        itemHeldLabel.setFont(new Font("SansSerif", Font.BOLD, 13));
-        itemHeldLabel.setBounds(755, 20, 90, 26);
-        bar.add(itemHeldLabel);
-
         return bar;
     }
 
@@ -397,10 +385,6 @@ public class ChronoArenaClient extends JFrame implements Runnable {
             bar.setBounds(0, 0, (int)(110 * Math.min(1.0, Math.max(0.0, captureProgress))), 8);
             bar.getParent().repaint();
         });
-    }
-
-    public void updateItemHeld(String itemType) {
-        SwingUtilities.invokeLater(() -> applyItemStyle(itemHeldLabel, itemType));
     }
 
     public void updatePlayerCard(String name, int hp, boolean frozen, boolean hasWeapon, boolean hasShield, boolean speedBoost, String itemType) {
