@@ -5,6 +5,12 @@ public class HUDPanel extends JPanel {
 
     private final JLabel timerLabel;
     private final JLabel[] scoreBoxLabels = new JLabel[4];
+    private GameEventListener gameEventListener;
+    private boolean gameEndFired = false;
+
+    public void setGameEventListener(GameEventListener listener) {
+        this.gameEventListener = listener;
+    }
 
     public HUDPanel() {
         setLayout(null);
@@ -41,6 +47,10 @@ public class HUDPanel extends JPanel {
         timerLabel.setForeground(secondsLeft < 30 ? new Color(220, 60, 60) : Style.TEXT_WHITE);
         for (int i = 0; i < 4 && i < scores.length; i++) {
             scoreBoxLabels[i].setText(String.valueOf(scores[i]));
+        }
+        if (secondsLeft <= 0 && !gameEndFired && gameEventListener != null) {
+            gameEndFired = true;
+            gameEventListener.onGameEnd();
         }
     }
 }
