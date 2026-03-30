@@ -4,7 +4,7 @@ import java.awt.event.*;
 import java.io.*;
 import java.net.*;
 
-public class ChronoArenaClient extends JFrame implements Runnable {
+public class ChronoArenaClient extends JFrame implements Runnable, GameEventListener {
 
     private Socket tcpSocket;
     private DatagramSocket udpSocket;
@@ -45,6 +45,7 @@ public class ChronoArenaClient extends JFrame implements Runnable {
         setBackground(Color.BLACK);
 
         hud = new HUDPanel();
+        hud.setGameEventListener(this);
         sidebar = new SidebarPanel(localPlayerId, () -> holdUp, () -> holdDown, () -> holdLeft, () -> holdRight, () -> System.exit(0));
         actionbar = new ActionbarPanel(action -> sendUDP("ACTION " + localPlayerId + " " + action + " " + udpSeq++));
 
@@ -129,6 +130,25 @@ public class ChronoArenaClient extends JFrame implements Runnable {
         actionbar.updateItemHeld(itemType);
     }
 
+    // game event listener implementations
+    @Override
+    public void onGameStart() {
+        System.out.println("=== GAME STARTED ===");
+        // TODO: add the game start logic here once players are implemented
+    }
+
+    @Override
+    public void onGameEnd() {
+        System.out.println("=== GAME OVER ===");
+        // TODO: find max score winner and show results to the screen once players are implemented
+    }
+
+    @Override
+    public void onPlayerFrozen() {
+        System.out.println("=== LOCAL PLAYER FROZEN ===");
+        // TODO: add freeze effect here once players are implemented
+    }
+
     // networking
     private void sendUDP(String message) {
         if (udpSocket == null) return;
@@ -147,6 +167,8 @@ public class ChronoArenaClient extends JFrame implements Runnable {
                 while (tcpSocket.isConnected()) {
                     String msg = dataInputStream.readUTF();
                     System.out.println(msg);
+                    if (msg.startsWith("GAME_START")) onGameStart();
+                    else if (msg.startsWith("PLAYER_FROZEN " + localPlayerId)) onPlayerFrozen();
                 }
             } catch (IOException e) {
                 System.out.println("ERROR IN RECEIVING TCP MESSAGE FROM SERVER");
