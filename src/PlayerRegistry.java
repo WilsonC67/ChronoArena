@@ -1,78 +1,111 @@
-// PlayerRegistry.java
+
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Thread-safe registry of all currently connected players.
+ * PlayerRegistry — thread-safe registry of all currently connected players.
  *
  * Lifecycle:
- *   register() called when a player's first UDP packet arrives
- *   update() called on every subsequent packet to refresh state
- *   sweep() remote players whose last sent packet is older than 15 seconds
+ *   register()          — called on a player's very first UDP packet
+ *   touch()             — called on HEARTBEAT packets (refresh lastSeen only)
+ *   update()            — called on all other game-state packets
+ *   sweepDeadPlayers()  — called periodically; marks/removes silent players
+ *
+ * All map operations use ConcurrentHashMap so reads from the game loop
+ * never block writers on the network thread.
  */
 public class PlayerRegistry {
-    // 15 s of silence -> presumed dead -> removed
-    private static final long TIMEOUT_MS = 15_000; 
 
     // keyed by playerId
-    private final ConcurrentHashMap<Integer, PlayerState> players = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, PlayerInfo> players = new ConcurrentHashMap<>();
+
+    // -----------------------------------------------------------------------
+    // Registration
+    // -----------------------------------------------------------------------
 
     /**
-     * Register a brand-new player, or silently ignore if already present.
-     * Returns the PlayerState (new or existing).
+     * Registers a new player if not already known.
+     * Returns the PlayerInfo (new or pre-existing) — never null.
      */
-    public PlayerState register(int playerId, String ipAddress, int tcpPort) {
+    public PlayerInfo register(int playerId, String ip, int tcpPort) {
         return players.computeIfAbsent(playerId, id -> {
-            System.out.printf("[PlayerRegistry] Player %d registered  ip=%s tcp=%d%n",
-                    id, ipAddress, tcpPort);
-            return new PlayerState(id, ipAddress, tcpPort);
+            PlayerInfo info = new PlayerInfo(id, ip, tcpPort);
+            System.out.printf("[PlayerRegistry] Player %d registered  ip=%s  tcp=%d%n",
+                    id, ip, tcpPort);
+            return info;
         });
     }
 
+    // -----------------------------------------------------------------------
+    // State updates
+    // -----------------------------------------------------------------------
+
     /**
-     * Update an existing player's action + position.
-     * Auto-registers if unseen before (e.g. first packet is an action).
+     * Heartbeat — only refreshes lastSeen; game state is untouched.
      */
-    public void update(int playerId, String ipAddress, int tcpPort,
-                       PlayerActionEnum action, float x, float y, String extra) {
-        PlayerState state = register(playerId, ipAddress, tcpPort);
-        state.lastAction = action;
-        state.x          = x;
-        state.y          = y;
-        state.extra      = extra;
-        state.lastSeen   = System.currentTimeMillis();
+    public void touch(int playerId, String ip, int tcpPort) {
+        register(playerId, ip, tcpPort).touch();
     }
 
-    /** Returns an unmodifiable live view of all registered players. */
-    public Collection<PlayerState> getAll() {
+    /**
+     * Full game-state update — position, action, and extra data.
+     * Auto-registers the player if somehow unseen before.
+     */
+    public void update(int playerId, String ip, int tcpPort,
+                       PlayerActionEnum action, float x, float y, String extra) {
+        register(playerId, ip, tcpPort).update(action, x, y, extra);
+    }
+
+    // -----------------------------------------------------------------------
+    // Sweep
+    // -----------------------------------------------------------------------
+
+    /**
+     * Marks players as dead if they have been silent longer than
+     * PlayerInfo.DEAD_THRESHOLD_MS, then removes them from the map.
+     *
+     * Called every SWEEP_INTERVAL ms by PlayerMonitor's watcher thread.
+     */
+    public void sweepDeadPlayers() {
+        long now = System.currentTimeMillis();
+        players.entrySet().removeIf(entry -> {
+            PlayerInfo info = entry.getValue();
+            boolean dead = (now - toEpochMillis(info)) > PlayerInfo.DEAD_THRESHOLD_MS;
+            if (dead) {
+                System.out.printf("[PlayerRegistry] Player %d timed out (silent >%ds) — removed.%n",
+                        info.getPlayerId(),
+                        PlayerInfo.DEAD_THRESHOLD_MS / 1000);
+            }
+            return dead;
+        });
+    }
+
+    /** Converts Instant stored inside PlayerInfo to epoch millis for comparison. */
+    private long toEpochMillis(PlayerInfo info) {
+        // getSecondsSinceLastContact() returns seconds elapsed; derive epoch millis.
+        return System.currentTimeMillis() - (info.getSecondsSinceLastContact() * 1000);
+    }
+
+    // -----------------------------------------------------------------------
+    // Queries
+    // -----------------------------------------------------------------------
+
+    public PlayerInfo get(int playerId) {
+        return players.get(playerId);
+    }
+
+    public Collection<PlayerInfo> getAll() {
         return Collections.unmodifiableCollection(players.values());
     }
 
-    public PlayerState get(int playerId) {
-        return players.get(playerId);
+    public List<PlayerInfo> getAllAsList() {
+        return new ArrayList<>(players.values());
     }
 
     public int count() {
         return players.size();
-    }
-
-    /**
-     * Remove players who haven't sent a packet within TIMEOUT_MS.
-     * Called periodically by the watcher thread inside PlayerListener.
-     */
-    public void sweepDeadPlayers() {
-        // gets current runtime
-        long now = System.currentTimeMillis();
-
-        // if the player's last seen packet is more than 15 seconds old, remove their entry
-        players.entrySet().removeIf(entry -> {
-            boolean dead = (now - entry.getValue().lastSeen) > TIMEOUT_MS;
-            if (dead) {
-                System.out.printf("[PlayerRegistry] Player %d timed out — removed.%n",
-                        entry.getKey());
-            }
-            return dead;
-        });
     }
 }

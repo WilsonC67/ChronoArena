@@ -1,6 +1,6 @@
-import javax.swing.*;
 import java.awt.*;
 import java.util.function.Consumer;
+import javax.swing.*;
 
 public class ActionbarPanel extends JPanel {
 

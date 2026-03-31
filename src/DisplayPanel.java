@@ -1,6 +1,6 @@
-import java.awt.Color;
-import java.awt.Dimension;
+import java.awt.*;
 import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
@@ -8,10 +8,8 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
-import javax.swing.*;
-import java.awt.*;
-import java.awt.event.KeyEvent;
 import javax.imageio.ImageIO;
+import javax.swing.*;
 
 //Displays the updated GamePanel to the Client
 public class DisplayPanel extends JPanel {
