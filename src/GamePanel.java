@@ -12,6 +12,7 @@ public class GamePanel extends JPanel implements Runnable {
 
     private ServerUDPQueue packetQueue;
     private PlayerListener playerListener;
+    private GameLogic gameLogic;
 
     // general grid layout (grid, color, etc)
     private static final int TILE = PropertyFileReader.getTileSize();
@@ -40,8 +41,8 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     public void setPacketQueue(ServerUDPQueue pq) { this.packetQueue = pq; }
-    
     public void setPlayerListener(PlayerListener pl) { this.playerListener = pl; }
+    public void setGameLogic(GameLogic gl) { this.gameLogic = gl; }
 
     // list of clients to broadcast frames to
     private final List<ClientHandler> clients = new CopyOnWriteArrayList<>();
@@ -59,13 +60,9 @@ public class GamePanel extends JPanel implements Runnable {
 
             tick++;
             if (playerListener != null) playerListener.setCurrentTick(tick);
-            if (packetQueue != null) {
+            if (packetQueue != null && gameLogic != null) {
                 List<PlayerAction> actions = packetQueue.drainReady(tick);
-                for (PlayerAction action : actions) {
-                    // apply action to game state
-                    System.out.printf("[GamePanel] tick=%d player=%d action=%s%n",
-                            tick, action.playerId, action.action);
-                }
+                gameLogic.processTick(tick, actions);
             }
             if (showTag) tagAlpha = 0.6f + 0.4f * (float) Math.abs(Math.sin(tick * 0.1));
 
