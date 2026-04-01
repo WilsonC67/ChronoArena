@@ -71,6 +71,55 @@ public class Zone implements Serializable {
         };
     }
 
+
+     // returns 3 zones placed at random positions each match
+    public static Zone[] createRandomZones() {
+        int cols = PropertyFileReader.getColNum();
+        int rows = PropertyFileReader.getRowNum();
+
+        int zW = 4, zH = 3;
+
+        // this is so zones don't sit on the edge
+        int minCol = 1, maxCol = cols - zW - 1;
+        int minRow = 1, maxRow = rows - zH - 1;
+
+        java.util.Random rng = new java.util.Random();
+        java.util.List<int[]> placed = new java.util.ArrayList<>();
+        String[] ids = {"zone_a", "zone_b", "zone_c"};
+        String[] names = {"ZONE A", "ZONE B", "ZONE C"};
+
+        for (int i = 0; i < 3; i++) {
+            int col, row;
+            int attempts = 0;
+
+            // keep trying until we find a spot that doesn't overlap any placed zone
+            do {
+                col = minCol + rng.nextInt(maxCol - minCol + 1);
+                row = minRow + rng.nextInt(maxRow - minRow + 1);
+                attempts++;
+            } while (overlapsAny(col, row, zW, zH, placed) && attempts < 200);
+
+            placed.add(new int[]{col, row, zW, zH});
+        }
+
+        Zone[] zones = new Zone[3];
+        for (int i = 0; i < 3; i++) {
+            zones[i] = new Zone(ids[i], names[i], placed.get(i)[0], placed.get(i)[1], zW, zH);
+        }
+        return zones;
+    }
+
+    // returns true if the zone (col, row, w, h) overlaps
+    private static boolean overlapsAny(int col, int row, int w, int h, java.util.List<int[]> placed) {
+        int gap = 1; // minimum tile gap between zones
+        for (int[] p : placed) {
+            boolean xOverlap = col < p[0] + p[2] + gap && col + w + gap > p[0];
+            boolean yOverlap = row < p[1] + p[3] + gap && row + h + gap > p[1];
+            if (xOverlap && yOverlap) return true;
+        }
+        return false;
+    }
+
     @Override
     public String toString() {
         return "Zone[" + name + " state=" + state

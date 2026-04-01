@@ -1,4 +1,3 @@
-
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -21,6 +20,7 @@ public class ChronoArenaClient extends JFrame implements Runnable, GameEventList
     private HUDPanel hud;
     private SidebarPanel sidebar;
     private ActionbarPanel actionbar;
+    private GameOverPanel gameOverPanel;
 
     public ChronoArenaClient(Socket tcpSocket, DatagramSocket udpSocket, String serverIp, int udpPort, int playerId) {
         this.tcpSocket = tcpSocket;
@@ -53,7 +53,18 @@ public class ChronoArenaClient extends JFrame implements Runnable, GameEventList
         setLayout(new BorderLayout());
         add(hud, BorderLayout.NORTH);
         add(sidebar, BorderLayout.WEST);
-        add(new DisplayPanel(), BorderLayout.CENTER);
+
+        // layer DisplayPanel and GameOverPanel so game over overlays the map
+        JLayeredPane centerLayer = new JLayeredPane();
+        centerLayer.setPreferredSize(new DisplayPanel().getPreferredSize());
+        DisplayPanel displayPanel = new DisplayPanel();
+        displayPanel.setBounds(0, 0, displayPanel.getPreferredSize().width, displayPanel.getPreferredSize().height);
+        gameOverPanel = new GameOverPanel();
+        gameOverPanel.setBounds(0, 0, displayPanel.getPreferredSize().width, displayPanel.getPreferredSize().height);
+        centerLayer.add(displayPanel, JLayeredPane.DEFAULT_LAYER);
+        centerLayer.add(gameOverPanel, JLayeredPane.PALETTE_LAYER);
+        add(centerLayer, BorderLayout.CENTER);
+
         add(actionbar, BorderLayout.SOUTH);
 
         setupKeyListeners();
@@ -141,7 +152,10 @@ public class ChronoArenaClient extends JFrame implements Runnable, GameEventList
     @Override
     public void onGameEnd() {
         System.out.println("=== GAME OVER ===");
-        // TODO: find max score winner and show results to the screen once players are implemented
+        // TODO: replace mock data with real scores/names from server once players are implemented
+        int[] scores = {0, 0, 0, 0};
+        String[] names = {"Player 1", "Player 2", "Player 3", "Player 4"};
+        SwingUtilities.invokeLater(() -> gameOverPanel.show(scores, names));
     }
 
     @Override
