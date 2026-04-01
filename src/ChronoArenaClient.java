@@ -137,11 +137,6 @@ public class ChronoArenaClient extends JFrame implements Runnable, GameEventList
         actionbar.updateZone(zoneIndex, ownerName, captureProgress);
     }
 
-    // updates item held
-    public void updateItemHeld(String itemType) {
-        actionbar.updateItemHeld(itemType);
-    }
-
     // game event listener implementations
     @Override
     public void onGameStart() {

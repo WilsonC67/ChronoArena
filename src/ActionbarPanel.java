@@ -6,7 +6,6 @@ public class ActionbarPanel extends JPanel {
 
     private final JLabel[] zoneOwnerLabels = new JLabel[3];
     private final JPanel[] zoneProgressBars = new JPanel[3];
-    private final JLabel itemHeldLabel;
 
     public ActionbarPanel(Consumer<String> onAction) {
         setLayout(null);
@@ -47,15 +46,6 @@ public class ActionbarPanel extends JPanel {
             zoneProgressBars[i].setBounds(0, 0, 0, 8);
             barBg.add(zoneProgressBars[i]);
         }
-
-        // item held indicator
-        JLabel itemTitle = Style.makeLabel("HOLDING", Style.FONT_XXS_B, Style.TEXT_MUTED, SwingConstants.CENTER);
-        itemTitle.setBounds(760, 6, 80, 14);
-        add(itemTitle);
-
-        itemHeldLabel = Style.makeLabel("NONE", Style.FONT_NORM, Style.TEXT_MUTED, SwingConstants.CENTER);
-        itemHeldLabel.setBounds(755, 20, 90, 26);
-        add(itemHeldLabel);
     }
 
     // update methods called by ChronoArenaClient
@@ -70,9 +60,5 @@ public class ActionbarPanel extends JPanel {
             bar.setBounds(0, 0, (int)(110 * Math.min(1.0, Math.max(0.0, captureProgress))), 8);
             bar.getParent().repaint();
         });
-    }
-
-    public void updateItemHeld(String itemType) {
-        SwingUtilities.invokeLater(() -> Style.applyItemStyle(itemHeldLabel, itemType));
     }
 }
