@@ -21,7 +21,7 @@ import java.net.DatagramSocket;
  */
 public class PlayerListener implements Runnable {
 
-    public static final  int UDP_PORT        = 6002;
+    public static final  int UDP_PORT        = PropertyFileReader.getUDPPort();
     private static final int BUFFER_SIZE     = 512;
     private static final int SWEEP_INTERVAL  = 10_000;
 
