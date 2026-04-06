@@ -36,6 +36,8 @@ public class GameLogic {
         if (!gameActive) return;
 
         for (PlayerAction pa : actions) {
+            if (!players.containsKey(pa.playerId))
+                addPlayer(pa.playerId, "Player " + pa.playerId);
             Player player = players.get(pa.playerId);
             if (player == null || !player.connected || player.killed) continue;
             handleAction(player, pa.action);
