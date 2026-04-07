@@ -4,68 +4,87 @@ import java.awt.event.*;
 import java.io.*;
 import java.net.*;
 
-public class ChronoArenaClient extends JFrame implements Runnable, GameEventListener {
+/**
+ * ChronoArenaClient — the player-side application.
+ *
+ * On launch it asks for a player ID (1-4), then:
+ *   1. DisplayPanel connects to GameServer via TCP and sends "JOIN <id>".
+ *   2. The server registers the player in GameLogic and replies "WELCOME <id>".
+ *   3. The server broadcasts rendered frames; DisplayPanel paints them.
+ *   4. Arrow / WASD keystrokes send UDP movement packets to the server.
+ *
+ * Configuration is read from config.properties (server.ip, tcp.port, udp.port).
+ */
+public class ChronoArenaClient extends JFrame implements GameEventListener {
 
-    private Socket tcpSocket;
+    // ── Config ────────────────────────────────────────────────────────────────
+    private static final String SERVER_IP  = PropertyFileReader.getIP();
+    private static final int    UDP_PORT   = PropertyFileReader.getUDPPort();
+
+    // ── Network ───────────────────────────────────────────────────────────────
     private DatagramSocket udpSocket;
-    private String serverIp;
-    private int udpPort;
-    private int localPlayerId;
-    private long udpSeq = 0;
-    private DataOutputStream dataOutputStream;
-    private DataInputStream dataInputStream;
+    private long           udpSeq = 0;
 
+    // ── Player state ──────────────────────────────────────────────────────────
+    private final int localPlayerId;
     private boolean holdUp, holdDown, holdLeft, holdRight;
 
-    private HUDPanel hud;
-    private SidebarPanel sidebar;
+    // ── UI panels ─────────────────────────────────────────────────────────────
+    private HUDPanel      hud;
+    private SidebarPanel  sidebar;
     private ActionbarPanel actionbar;
-    private GameOverPanel gameOverPanel;
+    private GameOverPanel  gameOverPanel;
+    private DisplayPanel   displayPanel;
 
-    public ChronoArenaClient(Socket tcpSocket, DatagramSocket udpSocket, String serverIp, int udpPort, int playerId) {
-        this.tcpSocket = tcpSocket;
-        this.udpSocket = udpSocket;
-        this.serverIp = serverIp;
-        this.udpPort = udpPort;
+    // ── Constructor ───────────────────────────────────────────────────────────
+
+    public ChronoArenaClient(int playerId) {
         this.localPlayerId = playerId;
     }
 
-    public ChronoArenaClient() {}
+    // ── Build & launch ────────────────────────────────────────────────────────
 
-    @Override
-    public void run() {
+    public void launch() {
+        try { udpSocket = new DatagramSocket(); }
+        catch (SocketException e) { System.err.println("UDP socket error: " + e.getMessage()); }
+
         SwingUtilities.invokeLater(this::buildUI);
     }
 
-    // build UI
     private void buildUI() {
-        setTitle("ChronoArena");
+        setTitle("ChronoArena — Player " + localPlayerId);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setFocusable(true);
         setResizable(false);
         setBackground(Color.BLACK);
 
-        hud = new HUDPanel();
+        hud      = new HUDPanel();
         hud.setGameEventListener(this);
-        sidebar = new SidebarPanel(localPlayerId, () -> holdUp, () -> holdDown, () -> holdLeft, () -> holdRight, () -> System.exit(0));
-        actionbar = new ActionbarPanel(action -> sendUDP("ACTION " + localPlayerId + " " + action + " " + udpSeq++));
+
+        sidebar  = new SidebarPanel(localPlayerId,
+                () -> holdUp, () -> holdDown, () -> holdLeft, () -> holdRight,
+                () -> System.exit(0));
+
+        actionbar = new ActionbarPanel(action ->
+                sendUDP("ACTION " + localPlayerId + " " + action + " " + udpSeq++));
 
         setLayout(new BorderLayout());
-        add(hud, BorderLayout.NORTH);
-        add(sidebar, BorderLayout.WEST);
-
-        // layer DisplayPanel and GameOverPanel so game over overlays the map
-        JLayeredPane centerLayer = new JLayeredPane();
-        centerLayer.setPreferredSize(new DisplayPanel().getPreferredSize());
-        DisplayPanel displayPanel = new DisplayPanel();
-        displayPanel.setBounds(0, 0, displayPanel.getPreferredSize().width, displayPanel.getPreferredSize().height);
-        gameOverPanel = new GameOverPanel();
-        gameOverPanel.setBounds(0, 0, displayPanel.getPreferredSize().width, displayPanel.getPreferredSize().height);
-        centerLayer.add(displayPanel, JLayeredPane.DEFAULT_LAYER);
-        centerLayer.add(gameOverPanel, JLayeredPane.PALETTE_LAYER);
-        add(centerLayer, BorderLayout.CENTER);
-
+        add(hud,      BorderLayout.NORTH);
+        add(sidebar,  BorderLayout.WEST);
         add(actionbar, BorderLayout.SOUTH);
+
+        // DisplayPanel sends JOIN <playerId> to the server on connect
+        displayPanel = new DisplayPanel(localPlayerId);
+        Dimension dp = displayPanel.getPreferredSize();
+
+        // Layer displayPanel + game-over overlay
+        JLayeredPane center = new JLayeredPane();
+        center.setPreferredSize(dp);
+        displayPanel.setBounds(0, 0, dp.width, dp.height);
+        gameOverPanel = new GameOverPanel();
+        gameOverPanel.setBounds(0, 0, dp.width, dp.height);
+        center.add(displayPanel,  JLayeredPane.DEFAULT_LAYER);
+        center.add(gameOverPanel, JLayeredPane.PALETTE_LAYER);
+        add(center, BorderLayout.CENTER);
 
         setupKeyListeners();
         pack();
@@ -73,126 +92,110 @@ public class ChronoArenaClient extends JFrame implements Runnable, GameEventList
         setVisible(true);
     }
 
-    // key listeners for movement
+    // ── Key input → UDP movement packets ─────────────────────────────────────
+
     private void setupKeyListeners() {
         JComponent root = getRootPane();
-        InputMap im = root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        InputMap  im = root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
         ActionMap am = root.getActionMap();
 
-        bindKey(im, KeyEvent.VK_UP, "UP");
-        bindKey(im, KeyEvent.VK_DOWN, "DOWN");
-        bindKey(im, KeyEvent.VK_LEFT, "LEFT");
+        bindKey(im, KeyEvent.VK_UP,    "UP");
+        bindKey(im, KeyEvent.VK_DOWN,  "DOWN");
+        bindKey(im, KeyEvent.VK_LEFT,  "LEFT");
         bindKey(im, KeyEvent.VK_RIGHT, "RIGHT");
-        bindKey(im, KeyEvent.VK_W, "UP");
-        bindKey(im, KeyEvent.VK_S, "DOWN");
-        bindKey(im, KeyEvent.VK_A, "LEFT");
-        bindKey(im, KeyEvent.VK_D, "RIGHT");
+        bindKey(im, KeyEvent.VK_W,     "UP");
+        bindKey(im, KeyEvent.VK_S,     "DOWN");
+        bindKey(im, KeyEvent.VK_A,     "LEFT");
+        bindKey(im, KeyEvent.VK_D,     "RIGHT");
 
-        am.put("UP_P", new AbstractAction() { public void actionPerformed(ActionEvent e) {
-            if (!holdUp) { holdUp = true; repaintJoystick(); sendUDP("MOVE " + localPlayerId + " 0 -1 " + udpSeq++); }
-        }});
-        am.put("DOWN_P", new AbstractAction() { public void actionPerformed(ActionEvent e) {
-            if (!holdDown) { holdDown = true; repaintJoystick(); sendUDP("MOVE " + localPlayerId + " 0 1 " + udpSeq++); }
-        }});
-        am.put("LEFT_P", new AbstractAction() { public void actionPerformed(ActionEvent e) {
-            if (!holdLeft) { holdLeft = true; repaintJoystick(); sendUDP("MOVE " + localPlayerId + " -1 0 " + udpSeq++); }
-        }});
-        am.put("RIGHT_P", new AbstractAction() { public void actionPerformed(ActionEvent e) {
-            if (!holdRight) { holdRight = true; repaintJoystick(); sendUDP("MOVE " + localPlayerId + " 1 0 " + udpSeq++); }
-        }});
+        am.put("UP_P",    press(() -> { holdUp    = true;  repaintJoystick(); moveUDP(0, -1); }));
+        am.put("DOWN_P",  press(() -> { holdDown  = true;  repaintJoystick(); moveUDP(0,  1); }));
+        am.put("LEFT_P",  press(() -> { holdLeft  = true;  repaintJoystick(); moveUDP(-1, 0); }));
+        am.put("RIGHT_P", press(() -> { holdRight = true;  repaintJoystick(); moveUDP(1,  0); }));
 
-        am.put("UP_R", new AbstractAction() { public void actionPerformed(ActionEvent e) { holdUp = false; repaintJoystick(); }});
-        am.put("DOWN_R", new AbstractAction() { public void actionPerformed(ActionEvent e) { holdDown = false; repaintJoystick(); }});
-        am.put("LEFT_R", new AbstractAction() { public void actionPerformed(ActionEvent e) { holdLeft = false; repaintJoystick(); }});
-        am.put("RIGHT_R", new AbstractAction() { public void actionPerformed(ActionEvent e) { holdRight = false; repaintJoystick(); }});
+        am.put("UP_R",    release(() -> { holdUp    = false; repaintJoystick(); }));
+        am.put("DOWN_R",  release(() -> { holdDown  = false; repaintJoystick(); }));
+        am.put("LEFT_R",  release(() -> { holdLeft  = false; repaintJoystick(); }));
+        am.put("RIGHT_R", release(() -> { holdRight = false; repaintJoystick(); }));
     }
 
     private void bindKey(InputMap im, int keyCode, String dir) {
         im.put(KeyStroke.getKeyStroke(keyCode, 0, false), dir + "_P");
-        im.put(KeyStroke.getKeyStroke(keyCode, 0, true), dir + "_R");
+        im.put(KeyStroke.getKeyStroke(keyCode, 0, true),  dir + "_R");
     }
 
-    private void repaintJoystick() {
-        if (sidebar != null) sidebar.repaint();
+    private AbstractAction press(Runnable r) {
+        return new AbstractAction() { public void actionPerformed(ActionEvent e) { r.run(); } };
+    }
+    private AbstractAction release(Runnable r) {
+        return new AbstractAction() { public void actionPerformed(ActionEvent e) { r.run(); } };
     }
 
-
-    // updates timer and scores
-    public void updateHUD(int secondsLeft, int[] scores) {
-        SwingUtilities.invokeLater(() -> hud.update(secondsLeft, scores));
+    private void moveUDP(int dx, int dy) {
+        // Map direction to PlayerActionEnum name expected by PlayerListener
+        String action;
+        if      (dx == -1) action = "MOVE_LEFT";
+        else if (dx ==  1) action = "MOVE_RIGHT";
+        else if (dy == -1) action = "MOVE_UP";
+        else               action = "MOVE_DOWN";
+        // Format: playerId,tcpPort,action,x,y,extra,seq
+        sendUDP(localPlayerId + "," + UDP_PORT + "," + action + ",0.0,0.0,," + udpSeq++);
     }
 
-    // updates own player card
-    public void updatePlayerCard(String name, int hp, boolean frozen, boolean hasWeapon, boolean hasShield, boolean speedBoost, String itemType) {
-        sidebar.updateSelfCard(name, hp, frozen, hasWeapon, hasShield, speedBoost, itemType);
-    }
+    private void repaintJoystick() { if (sidebar != null) sidebar.repaint(); }
 
-    // updates other player cards
-    public void updateOtherPlayer(int index, String name, int score, boolean frozen, boolean speedBoost, String itemType) {
-        sidebar.updateOtherPlayer(index, name, score, frozen, speedBoost, itemType);
-    }
+    // ── GameEventListener ─────────────────────────────────────────────────────
 
-    // updates zone and capture
-    public void updateZone(int zoneIndex, String ownerName, double captureProgress) {
-        actionbar.updateZone(zoneIndex, ownerName, captureProgress);
-    }
-
-    // updates item held
-    public void updateItemHeld(String itemType) {
-        actionbar.updateItemHeld(itemType);
-    }
-
-    // game event listener implementations
-    @Override
-    public void onGameStart() {
-        System.out.println("=== GAME STARTED ===");
-        // TODO: add the game start logic here once players are implemented
-    }
+    @Override public void onGameStart()    { System.out.println("=== GAME START ==="); }
+    @Override public void onPlayerFrozen() { System.out.println("=== PLAYER FROZEN ==="); }
 
     @Override
     public void onGameEnd() {
         System.out.println("=== GAME OVER ===");
-        // TODO: replace mock data with real scores/names from server once players are implemented
-        int[] scores = {0, 0, 0, 0};
-        String[] names = {"Player 1", "Player 2", "Player 3", "Player 4"};
+        // TODO: receive real scores from server
+        int[]    scores = {0, 0, 0, 0};
+        String[] names  = {"Player 1", "Player 2", "Player 3", "Player 4"};
         SwingUtilities.invokeLater(() -> gameOverPanel.show(scores, names));
     }
 
-    @Override
-    public void onPlayerFrozen() {
-        System.out.println("=== LOCAL PLAYER FROZEN ===");
-        // TODO: add freeze effect here once players are implemented
-    }
+    // ── UDP sender ────────────────────────────────────────────────────────────
 
-    // networking
     private void sendUDP(String message) {
         if (udpSocket == null) return;
         try {
-            byte[] data = message.getBytes();
-            DatagramPacket pkt = new DatagramPacket(data, data.length, InetAddress.getByName(serverIp), udpPort);
+            byte[]         data = message.getBytes();
+            DatagramPacket pkt  = new DatagramPacket(data, data.length,
+                    InetAddress.getByName(SERVER_IP), UDP_PORT);
             udpSocket.send(pkt);
         } catch (IOException e) {
             System.err.println("[UDP] Send failed: " + e.getMessage());
         }
     }
 
-    public void receiveTCPMessages() {
-        new Thread(() -> {
-            try {
-                while (tcpSocket.isConnected()) {
-                    String msg = dataInputStream.readUTF();
-                    System.out.println(msg);
-                    if (msg.startsWith("GAME_START")) onGameStart();
-                    else if (msg.startsWith("PLAYER_FROZEN " + localPlayerId)) onPlayerFrozen();
-                }
-            } catch (IOException e) {
-                System.out.println("ERROR IN RECEIVING TCP MESSAGE FROM SERVER");
-                e.printStackTrace();
-            }
-        }).start();
-    }
+    // ── Entry point ───────────────────────────────────────────────────────────
 
+    /**
+     * Prompts for a player ID (1-4) then launches the client.
+     * The player ID determines which "seat" the player occupies in the game.
+     */
     public static void main(String[] args) {
-        new Thread(new ChronoArenaClient()).start();
+        // Try to read player ID from system property first, then prompt
+        int pid = 0;
+        String prop = System.getProperty("player.id");
+        if (prop != null) {
+            try { pid = Integer.parseInt(prop.trim()); } catch (NumberFormatException ignored) {}
+        }
+
+        if (pid < 1 || pid > 4) {
+            String input = JOptionPane.showInputDialog(null,
+                    "Enter your Player ID (1-4):", "ChronoArena", JOptionPane.QUESTION_MESSAGE);
+            if (input == null) System.exit(0);
+            try { pid = Integer.parseInt(input.trim()); }
+            catch (NumberFormatException e) { pid = 1; }
+            pid = Math.max(1, Math.min(4, pid));
+        }
+
+        final int finalPid = pid;
+        SwingUtilities.invokeLater(() -> new ChronoArenaClient(finalPid).launch());
     }
 }
