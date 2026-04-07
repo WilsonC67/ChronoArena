@@ -1,32 +1,32 @@
-
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Player2 — runs on each player's machine.
+ * Player2 — UDP heartbeat sender and action dispatcher, runs on each player's machine.
+ *
+ * NOTE: In the current architecture, players connect via ChronoArenaClient, which
+ * handles both the TCP display connection and UDP movement packets directly.
+ * Player2 is retained as a standalone UDP utility/testing class.
  *
  * Responsibilities:
  *   1. HeartbeatPulse  — daemon thread; sends a UDP HEARTBEAT packet to the
  *                        server's PlayerMonitor every HEARTBEAT_INTERVAL_MS.
- *                        Packet: "<playerId>,<tcpPort>,HEARTBEAT,0.0,0.0,"
+ *                        Packet: "<playerId>,<udpPort>,HEARTBEAT,0.0,0.0,"
  *
- *   2. sendAction()    — called by the game client (Swing input handlers,
- *                        game loop, etc.) to transmit any non-heartbeat packet.
- *                        Packet: "<playerId>,<tcpPort>,<action>,<x>,<y>,<extra>"
+ *   2. sendAction()    — transmits any non-heartbeat game action packet.
+ *                        Packet: "<playerId>,<udpPort>,<action>,<x>,<y>,<extra>"
  *
- * Configuration (JVM system properties, matching Node.java convention):
- *   -Dserver.host=192.168.1.10   IP of the machine running GameServer
- *   -Dplayer.id=1                unique integer ID for this player
- *   -Dservice.port=5102          UDP source port / TCP port reported to server
- *                                (each player on the same LAN needs a unique value)
+ * Configuration (JVM system properties):
+ *   -Dserver.ip=192.168.1.10    IP of the machine running GameServer
+ *   -Dplayer.id=1               unique integer ID for this player (1-4)
+ *   -Dservice.port=1235         UDP port (should match udp.port in config.properties)
  *
- * Example launch commands (from the project description):
- *   Laptop A (server):  java Game.GameServer
- *   Laptop B (player 1): java -Dserver.host=192.168.1.10 -Dplayer.id=1 -Dservice.port=5102 Player2
- *   Laptop C (player 2): java -Dserver.host=192.168.1.10 -Dplayer.id=2 -Dservice.port=5103 Player2
- *   Laptop D (player 3): java -Dserver.host=192.168.1.10 -Dplayer.id=3 -Dservice.port=5104 Player2
+ * Example standalone usage (for testing UDP without the full client):
+ *   Machine A (server):   java -cp . GameServer
+ *   Machine B (player 1): java -Dserver.ip=192.168.1.10 -Dplayer.id=1 -cp . Player2
+ *   Machine C (player 2): java -Dserver.ip=192.168.1.10 -Dplayer.id=2 -cp . Player2
  */
 public class Player2 implements Runnable {
 
@@ -34,9 +34,9 @@ public class Player2 implements Runnable {
     // Configuration — read from system properties at startup
     // -----------------------------------------------------------------------
 
-    /** IP address of the machine running GameServer. */
+    /** IP address of the machine running GameServer. Matches -Dserver.ip used by ChronoArenaClient. */
     public static final String SERVER_HOST =
-            System.getProperty("server.host", "localhost");
+            System.getProperty("server.ip", "localhost");
 
     /** Unique integer ID for this player. */
     public static final int PLAYER_ID =

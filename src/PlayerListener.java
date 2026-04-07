@@ -2,22 +2,24 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 
 /**
- * Listens on UDP port 6002 for player state packets.
+ * PlayerListener — listens for UDP game-action packets from ChronoArenaClient instances.
  *
- * Expected payload (comma-separated, 6 fields minimum):
+ * Port is read from config.properties (udp.port, default 1235).
  *
- *   playerId , tcpPort , action , x , y , extra
- *   --------   -------   ------   -   -   -----
- *   int        int        enum   flt flt  string (optional, "" if absent)
+ * Expected payload (comma-separated, 6+ fields):
+ *
+ *   playerId , udpPort , action , x , y , extra [, seq]
+ *   --------   -------   ------   -   -   -----    ---
+ *   int        int        enum   flt flt  string   int (optional, 0 if absent)
  *
  * Examples:
- *   "1,5200,MOVE_RIGHT,320.5,112.0,"
- *   "2,5201,PICKUP_POWERUP,88.0,200.0,SHIELD"
- *   "3,5202,SHOOT,150.0,300.0,BULLET_ID:42"
+ *   "1,1235,MOVE_RIGHT,0.0,0.0,,"
+ *   "2,1235,PICKUP_POWERUP,0.0,0.0,SHIELD"
+ *   "3,1235,SHOOT,0.0,0.0,,7"
  *
- * Internally mirrors HeartbeatMonitor:
- *   - receiverLoop() — blocking UDP receive, parses every packet
- *   - watcherLoop()  — daemon thread, sweeps silent players every 10 s
+ * Two internal threads:
+ *   receiverLoop() — blocking UDP receive, parses every packet and enqueues it
+ *   watcherLoop()  — daemon thread, sweeps silent players every 10 s
  */
 public class PlayerListener implements Runnable {
 

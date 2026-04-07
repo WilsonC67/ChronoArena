@@ -1,30 +1,31 @@
-
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 
 /**
- * PlayerMonitor — listens for UDP packets from player clients on port 6001.
+ * PlayerMonitor — listens for UDP heartbeat/action packets from player clients.
+ *
+ * Port is read from config.properties (udp.port, default 1235).
  *
  * Two internal threads:
  *   receiverLoop() — blocks on DatagramSocket.receive(); runs on THIS thread.
  *   watcherLoop()  — daemon thread; calls sweepDeadPlayers() every SWEEP_INTERVAL ms.
  *
  * -----------------------------------------------------------------------
- * UDP packet format (UTF-8, comma-separated):
+ * UDP packet format (UTF-8, comma-separated, 6+ fields):
  *
- *   playerId , tcpPort , action , x , y [, extra]
+ *   playerId , udpPort , action , x , y [, extra]
  *   --------   -------   ------   -   -    -----
  *   int        int        enum   flt flt   string  (optional, "" if absent)
  *
  * Examples:
- *   "1,5102,HEARTBEAT,0.0,0.0,"          ← keepalive only
- *   "1,5102,MOVE_RIGHT,320.5,112.0,"     ← movement update
- *   "2,5103,PICKUP_POWERUP,88.0,200.0,SHIELD"
- *   "3,5104,SHOOT,150.0,300.0,BULLET_ID:42"
+ *   "1,1235,HEARTBEAT,0.0,0.0,"        ← keepalive only
+ *   "1,1235,MOVE_RIGHT,0.0,0.0,"       ← movement (x/y unused server-side, grid-based)
+ *   "2,1235,PICKUP_POWERUP,0.0,0.0,SHIELD"
+ *   "3,1235,SHOOT,0.0,0.0,"
  * -----------------------------------------------------------------------
  *
  * HEARTBEAT packets only refresh lastSeen — they never touch game state.
- * All other actions call PlayerRegistry.update() with full position data.
+ * All other actions call PlayerRegistry.update() with the parsed data.
  */
 public class PlayerMonitor implements Runnable {
 

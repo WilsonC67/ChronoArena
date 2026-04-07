@@ -1,4 +1,3 @@
-
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -12,8 +11,8 @@ public class GameServerTest {
     public static void main(String[] args) throws Exception {
         if (args.length == 0) {
             System.out.println("Usage:");
-            System.out.println("  java Game.GameServerTest player <id> <port> [serverIp]");
-            System.out.println("  java Game.GameServerTest malformed [serverIp]");
+            System.out.println("  java -cp . GameServerTest player <id> <port> [serverIp]");
+            System.out.println("  java -cp . GameServerTest malformed [serverIp]");
             return;
         }
 
@@ -27,19 +26,21 @@ public class GameServerTest {
     // ========================================================================
     // FakePlayer
     //
-    // Simulates a player client by:
-    //   1. Sending a heartbeat every 5 seconds.
+    // Simulates a UDP-only player client (no TCP/display connection) by:
+    //   1. Sending a heartbeat every 5 seconds to PlayerMonitor.
     //   2. Sending a burst of game-action packets once at startup.
     //
-    // Usage: java Game.GameServerTest player <id> <port> [serverIp]
+    // Usage: java -cp . GameServerTest player <id> [udpPort] [serverIp]
+    //   id       — player ID (1-4)
+    //   udpPort  — defaults to udp.port in config.properties (1235)
+    //   serverIp — defaults to 127.0.0.1
     // ========================================================================
     static class FakePlayer {
 
         static void run(String[] args) throws Exception {
             int    playerId  = args.length > 1 ? Integer.parseInt(args[1]) : 1;
-            int    tcpPort   = args.length > 2 ? Integer.parseInt(args[2]) : 5102;
+            int    udpPort   = args.length > 2 ? Integer.parseInt(args[2]) : PlayerMonitor.UDP_PORT;
             String serverIp  = args.length > 3 ? args[3] : "127.0.0.1";
-            int    udpPort   = PlayerMonitor.UDP_PORT;
 
             System.out.printf("[FakePlayer %d] Targeting server at %s:%d%n",
                     playerId, serverIp, udpPort);
@@ -49,7 +50,7 @@ public class GameServerTest {
 
             // --- Start heartbeat thread ---
             Thread heartbeat = new Thread(() -> {
-                String hb = String.format("%d,%d,HEARTBEAT,0.0,0.0,", playerId, tcpPort);
+                String hb = String.format("%d,%d,HEARTBEAT,0.0,0.0,", playerId, udpPort);
                 while (!Thread.currentThread().isInterrupted()) {
                     try {
                         send(socket, serverAddr, udpPort, hb);
@@ -68,11 +69,11 @@ public class GameServerTest {
 
             // --- Burst of game-action packets ---
             String[][] actions = {
-                { String.format("%d,%d,MOVE_RIGHT,100.0,200.0,",    playerId, tcpPort) },
-                { String.format("%d,%d,MOVE_RIGHT,105.0,200.0,",    playerId, tcpPort) },
-                { String.format("%d,%d,PICKUP_POWERUP,110.0,200.0,SHIELD", playerId, tcpPort) },
-                { String.format("%d,%d,SHOOT,115.0,200.0,BULLET_ID:1",     playerId, tcpPort) },
-                { String.format("%d,%d,IDLE,120.0,200.0,",          playerId, tcpPort) },
+                { String.format("%d,%d,MOVE_RIGHT,0.0,0.0,",    playerId, udpPort) },
+                { String.format("%d,%d,MOVE_RIGHT,0.0,0.0,",    playerId, udpPort) },
+                { String.format("%d,%d,PICKUP_POWERUP,0.0,0.0,SHIELD", playerId, udpPort) },
+                { String.format("%d,%d,SHOOT,0.0,0.0,",         playerId, udpPort) },
+                { String.format("%d,%d,IDLE,0.0,0.0,",          playerId, udpPort) },
             };
 
             for (String[] action : actions) {
@@ -102,7 +103,8 @@ public class GameServerTest {
     // Sends intentionally broken packets to verify the server's error handling
     // does NOT crash PlayerMonitor.
     //
-    // Usage: java Game.GameServerTest malformed [serverIp]
+    // Usage: java -cp . GameServerTest malformed [serverIp]
+    //   serverIp — defaults to 127.0.0.1
     // ========================================================================
     static class MalformedSender {
 
