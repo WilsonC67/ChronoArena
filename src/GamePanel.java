@@ -1,38 +1,68 @@
-
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import javax.imageio.ImageIO;
 import javax.swing.*;
 
+/**
+ * GamePanel — game loop, renderer, and frame broadcaster.
+ *
+ * Each tick it:
+ *   1. Drains the UDP packet queue and hands actions to GameLogic.
+ *   2. Renders the full arena (grid → zones → items → players → overlays)
+ *      into a BufferedImage.
+ *   3. JPEG-compresses that image and broadcasts it to all connected
+ *      ClientHandlers.
+ */
 public class GamePanel extends JPanel implements Runnable {
 
-    private ServerUDPQueue packetQueue;
-    private PlayerListener playerListener;
-    private GameLogic gameLogic;
+    // ── Config ────────────────────────────────────────────────────────────────
+    private static final int TILE      = PropertyFileReader.getTileSize();
+    private static final int COLS      = PropertyFileReader.getColNum();
+    private static final int ROWS      = PropertyFileReader.getRowNum();
+    private static final int TICK_RATE = 20;   // ticks per second
 
-    // general grid layout (grid, color, etc)
-    private static final int TILE = PropertyFileReader.getTileSize();
-    private static final int COLS = PropertyFileReader.getColNum();
-    private static final int ROWS = PropertyFileReader.getRowNum();
+    // ── Grid colours ─────────────────────────────────────────────────────────
+    private static final Color TILE_A     = new Color(210, 213, 220);
+    private static final Color TILE_B     = new Color(195, 198, 207);
+    private static final Color GRID_LINE  = new Color(180, 183, 192);
 
-    private static final Color TILE_A = new Color(210, 213, 220);
-    private static final Color TILE_B = new Color(195, 198, 207);
-    private static final Color GRID_LINE = new Color(180, 183, 192);
+    // ── Zone colours ──────────────────────────────────────────────────────────
+    private static final Color COL_CONTESTED  = new Color(230, 150,  20);
+    private static final Color COL_CONTROLLED = new Color( 40, 160,  60);
+    private static final Color COL_CAPTURING  = new Color( 60, 100, 220);
+    private static final Color COL_UNCLAIMED  = new Color(160, 140,  60);
 
-    private static final Color COL_CONTESTED = new Color(230, 150, 20);
-    private static final Color COL_CONTROLLED = new Color(40, 160, 60);
-    private static final Color COL_UNCLAIMED = new Color(160, 140, 60);
+    // ── Player colours (index 0-3) ────────────────────────────────────────────
+    private static final Color[] PLAYER_COLORS = {
+        new Color( 60, 100, 220),   // P1 — blue
+        new Color(200,  50,  50),   // P2 — red
+        new Color( 50, 160,  50),   // P3 — green
+        new Color(200, 160,  30),   // P4 — gold
+    };
 
-    private static final int TICK_RATE = 20;
+    // ── Item colours ──────────────────────────────────────────────────────────
+    private static final Color COL_ENERGY = new Color(255, 200,  40);
+    private static final Color COL_GUN    = new Color(255, 100, 100);
+    private static final Color COL_SHIELD = new Color(100, 160, 255);
+    private static final Color COL_SPEED  = new Color(100, 220, 100);
 
-    // animation states
-    private int tick = 0;
-    private float tagAlpha = 1f;
-    private boolean showTag = true;
+    // ── Wiring ────────────────────────────────────────────────────────────────
+    private ServerUDPQueue  packetQueue;
+    private PlayerListener  playerListener;
+    private GameLogic       gameLogic;
+
+    private final List<ClientHandler> clients = new CopyOnWriteArrayList<>();
+
+    // ── Animation state ───────────────────────────────────────────────────────
+    private int   tick     = 0;
+    private float pulse    = 0f;   // 0-1 sine wave used for frozen shimmer / item bounce
+
+    // ── Constructor ───────────────────────────────────────────────────────────
 
     public GamePanel() {
         setPreferredSize(new Dimension(COLS * TILE, ROWS * TILE));
@@ -40,85 +70,65 @@ public class GamePanel extends JPanel implements Runnable {
         setFocusable(true);
     }
 
-    public void setPacketQueue(ServerUDPQueue pq) { this.packetQueue = pq; }
+    public void setPacketQueue(ServerUDPQueue pq)    { this.packetQueue    = pq; }
     public void setPlayerListener(PlayerListener pl) { this.playerListener = pl; }
-    public void setGameLogic(GameLogic gl) { this.gameLogic = gl; }
+    public void setGameLogic(GameLogic gl)           { this.gameLogic      = gl; }
 
-    // list of clients to broadcast frames to
-    private final List<ClientHandler> clients = new CopyOnWriteArrayList<>();
+    public void addClient(ClientHandler c)    { clients.add(c); }
+    public void removeClient(ClientHandler c) { clients.remove(c); }
 
-    // register/remove clients
-    public void addClient(ClientHandler client) { clients.add(client); }
-    public void removeClient(ClientHandler client) { clients.remove(client); }
+    // ── Game loop ─────────────────────────────────────────────────────────────
 
-    // game loop thread
     @Override
     public void run() {
-        long tickDuration = 1000 / TICK_RATE;
+        long tickMs = 1000 / TICK_RATE;
         while (!Thread.currentThread().isInterrupted()) {
             long start = System.currentTimeMillis();
 
             tick++;
+            pulse = (float) Math.abs(Math.sin(tick * 0.15));
+
             if (playerListener != null) playerListener.setCurrentTick(tick);
+
             if (packetQueue != null && gameLogic != null) {
                 List<PlayerAction> actions = packetQueue.drainReady(tick);
                 gameLogic.processTick(tick, actions);
             }
-            if (showTag) tagAlpha = 0.6f + 0.4f * (float) Math.abs(Math.sin(tick * 0.1));
 
-            // render and broadcast
             BufferedImage frame = renderToImage();
             broadcastFrame(frame);
 
-            long elapsed = System.currentTimeMillis() - start;
-            long sleep = tickDuration - elapsed;
+            long sleep = tickMs - (System.currentTimeMillis() - start);
             if (sleep > 0) {
-                try { Thread.sleep(sleep); }
-                catch (InterruptedException e) { break; }
+                try { Thread.sleep(sleep); } catch (InterruptedException e) { break; }
             }
         }
     }
 
-    // renders the panel to a BufferedImage without needing it displayed on screen
+    // ── Rendering ─────────────────────────────────────────────────────────────
+
     public BufferedImage renderToImage() {
-        BufferedImage image = new BufferedImage(COLS * TILE, ROWS * TILE, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g = image.createGraphics();
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        BufferedImage img = new BufferedImage(COLS * TILE, ROWS * TILE, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = img.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,      RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        drawGrid(g);
-        drawZones(g);
-        if (showTag) drawTagPopup(g);
-        g.dispose();
-        return image;
-    }
 
-    //encodes and sends to all clients
-    private void broadcastFrame(BufferedImage frame) {
-        try {
-            ByteArrayOutputStream arrayOutputStream = new ByteArrayOutputStream();
-            ImageIO.write(frame, "jpg", arrayOutputStream);
-            byte[] data = arrayOutputStream.toByteArray();
-            for (ClientHandler client : clients) {
-                client.sendFrame(data);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
+        drawGrid(g);
+        if (gameLogic != null) {
+            drawZones(g);
+            drawItems(g);
+            drawPlayers(g);
+            drawHudOverlay(g);
+        } else {
+            drawWaitingScreen(g);
         }
+
+        g.dispose();
+        return img;
     }
 
-    @Override
-    protected void paintComponent(Graphics g0) {
-        super.paintComponent(g0);
-        Graphics2D g = (Graphics2D) g0;
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+    // ── Grid ──────────────────────────────────────────────────────────────────
 
-        drawGrid(g);
-        drawZones(g);
-        if (showTag) drawTagPopup(g);
-    }
-
-    // grid development
     private void drawGrid(Graphics2D g) {
         for (int r = 0; r < ROWS; r++) {
             for (int c = 0; c < COLS; c++) {
@@ -130,66 +140,320 @@ public class GamePanel extends JPanel implements Runnable {
         g.setStroke(new BasicStroke(0.5f));
         for (int c = 0; c <= COLS; c++) g.drawLine(c * TILE, 0, c * TILE, ROWS * TILE);
         for (int r = 0; r <= ROWS; r++) g.drawLine(0, r * TILE, COLS * TILE, r * TILE);
+        g.setStroke(new BasicStroke(1f));
     }
 
-    // zone development 
+    // ── Zones — live state from GameLogic ─────────────────────────────────────
+
     private void drawZones(Graphics2D g) {
-        drawZone(g, 2, 5, 4, 3, "ZONE A\nCONTESTED", COL_CONTESTED, new Color(255, 200, 80, 55), false);
-        drawZone(g, 7, 1, 4, 3, "ZONE B\nCONTROLLED", COL_CONTROLLED, new Color(60, 200, 80, 50), false);
-        drawZone(g, 9, 7, 4, 3, "ZONE C\nUNCLAIMED", COL_UNCLAIMED, new Color(180, 160, 60, 35), true);
+        Zone[] zones = gameLogic.getZones();
+        for (Zone zone : zones) {
+            Color border, fill;
+            boolean dashed = false;
+
+            switch (zone.state) {
+                case CONTESTED:
+                    border = COL_CONTESTED;
+                    fill   = new Color(230, 150, 20, 55);
+                    break;
+                case CONTROLLED:
+                    // Tint to the owning player's colour
+                    Color ownerCol = playerColor(zone.ownerId);
+                    border = ownerCol.darker();
+                    fill   = new Color(ownerCol.getRed(), ownerCol.getGreen(), ownerCol.getBlue(), 50);
+                    break;
+                case CAPTURING:
+                    border = COL_CAPTURING;
+                    fill   = new Color(60, 100, 220, 45);
+                    break;
+                default: // UNCLAIMED
+                    border = COL_UNCLAIMED;
+                    fill   = new Color(160, 140, 60, 35);
+                    dashed = true;
+                    break;
+            }
+
+            int x = zone.col   * TILE;
+            int y = zone.row   * TILE;
+            int w = zone.width * TILE;
+            int h = zone.height * TILE;
+
+            g.setColor(fill);
+            g.fillRect(x, y, w, h);
+
+            if (dashed) {
+                g.setColor(border);
+                g.setStroke(new BasicStroke(2.5f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER,
+                        10, new float[]{8, 5}, tick * 0.3f));
+            } else {
+                g.setColor(border);
+                g.setStroke(new BasicStroke(3f));
+            }
+            g.drawRect(x + 1, y + 1, w - 2, h - 2);
+            g.setStroke(new BasicStroke(1f));
+
+            // Capture progress bar at the bottom of the zone
+            if (zone.state == Zone.State.CAPTURING && zone.captureProgress > 0) {
+                int barW = (int)((double) w * zone.captureProgress / Zone.CAPTURE_TICKS);
+                g.setColor(new Color(60, 100, 220, 140));
+                g.fillRect(x, y + h - 6, barW, 6);
+            }
+
+            // Zone label
+            String[] lines = buildZoneLabel(zone);
+            g.setFont(new Font("SansSerif", Font.BOLD, 12));
+            FontMetrics fm = g.getFontMetrics();
+            int totalH  = lines.length * (fm.getHeight() + 1);
+            int startY  = y + (h - totalH) / 2 + fm.getAscent();
+            for (String line : lines) {
+                int tw = fm.stringWidth(line);
+                g.setColor(new Color(0, 0, 0, 80));
+                g.drawString(line, x + (w - tw) / 2 + 1, startY + 1);
+                g.setColor(border.darker());
+                g.drawString(line, x + (w - tw) / 2, startY);
+                startY += fm.getHeight() + 1;
+            }
+        }
     }
 
-    private void drawZone(Graphics2D g, int col, int row, int wTiles, int hTiles, String label, Color border, Color fill, boolean dashed) {
-        int x = col * TILE, y = row * TILE;
-        int w = wTiles * TILE, h = hTiles * TILE;
-        g.setColor(fill);
-        g.fillRect(x, y, w, h);
-        if (dashed) {
-            g.setColor(border);
-            g.setStroke(new BasicStroke(2.5f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10, new float[]{8, 5}, tick * 0.3f));
-        } else {
-            g.setColor(border);
-            g.setStroke(new BasicStroke(3f));
+    private String[] buildZoneLabel(Zone zone) {
+        String stateLine;
+        switch (zone.state) {
+            case CONTESTED:  stateLine = "CONTESTED";  break;
+            case CONTROLLED: stateLine = "CONTROLLED"; break;
+            case CAPTURING:  stateLine = "CAPTURING";  break;
+            default:         stateLine = "UNCLAIMED";  break;
         }
-        g.drawRect(x + 1, y + 1, w - 2, h - 2);
-        g.setStroke(new BasicStroke(1));
+        if (zone.state == Zone.State.CONTROLLED && zone.ownerId > 0) {
+            return new String[]{ zone.name, "P" + zone.ownerId };
+        }
+        return new String[]{ zone.name, stateLine };
+    }
 
-        String[] lines = label.split("\n");
-        g.setFont(new Font("SansSerif", Font.BOLD, 13));
+    // ── Items ─────────────────────────────────────────────────────────────────
+
+    private void drawItems(Graphics2D g) {
+        int bounce = (int)(pulse * 4);
+        for (Item item : gameLogic.getItems()) {
+            if (!item.active) continue;
+
+            int cx = item.x * TILE + TILE / 2;
+            int cy = item.y * TILE + TILE / 2 - bounce;
+            int r  = TILE / 3;
+
+            Color col = itemColor(item.type);
+
+            // Glow
+            g.setColor(new Color(col.getRed(), col.getGreen(), col.getBlue(), 60));
+            g.fillOval(cx - r - 4, cy - r - 4, (r + 4) * 2, (r + 4) * 2);
+
+            // Body
+            g.setColor(col);
+            g.fillOval(cx - r, cy - r, r * 2, r * 2);
+            g.setColor(col.darker());
+            g.setStroke(new BasicStroke(1.5f));
+            g.drawOval(cx - r, cy - r, r * 2, r * 2);
+            g.setStroke(new BasicStroke(1f));
+
+            // Letter inside
+            g.setColor(Color.WHITE);
+            g.setFont(new Font("SansSerif", Font.BOLD, 10));
+            FontMetrics fm = g.getFontMetrics();
+            String lbl = itemLabel(item.type);
+            g.drawString(lbl, cx - fm.stringWidth(lbl) / 2, cy + fm.getAscent() / 2);
+        }
+    }
+
+    private Color itemColor(Item.Type t) {
+        switch (t) {
+            case GUN:         return COL_GUN;
+            case SHIELD:      return COL_SHIELD;
+            case SPEED_BOOST: return COL_SPEED;
+            default:          return COL_ENERGY;
+        }
+    }
+
+    private String itemLabel(Item.Type t) {
+        switch (t) {
+            case GUN:         return "G";
+            case SHIELD:      return "S";
+            case SPEED_BOOST: return "⚡";
+            default:          return "E";
+        }
+    }
+
+    // ── Players ───────────────────────────────────────────────────────────────
+
+    private void drawPlayers(Graphics2D g) {
+        Map<Integer, Player> players = gameLogic.getPlayers();
+        if (players.isEmpty()) {
+            drawWaitingScreen(g);
+            return;
+        }
+
+        for (Player p : players.values()) {
+            if (!p.connected || p.killed) continue;
+
+            int cx = p.x * TILE + TILE / 2;
+            int cy = p.y * TILE + TILE / 2;
+            int r  = TILE / 2 - 4;
+
+            Color col = playerColor(p.id);
+
+            // Frozen shimmer
+            if (p.frozen) {
+                float alpha = 0.3f + 0.4f * pulse;
+                g.setColor(new Color(100, 180, 255, (int)(alpha * 255)));
+                g.fillOval(cx - r - 5, cy - r - 5, (r + 5) * 2, (r + 5) * 2);
+            }
+
+            // Speed boost aura
+            if (p.speedBoost) {
+                g.setColor(new Color(100, 220, 100, 80));
+                g.fillOval(cx - r - 6, cy - r - 6, (r + 6) * 2, (r + 6) * 2);
+            }
+
+            // Shadow
+            g.setColor(new Color(0, 0, 0, 60));
+            g.fillOval(cx - r + 2, cy - r + 2, r * 2, r * 2);
+
+            // Body
+            g.setColor(col);
+            g.fillOval(cx - r, cy - r, r * 2, r * 2);
+
+            // Rim
+            g.setColor(col.brighter());
+            g.setStroke(new BasicStroke(2f));
+            g.drawOval(cx - r, cy - r, r * 2, r * 2);
+            g.setStroke(new BasicStroke(1f));
+
+            // Player number
+            g.setColor(Color.WHITE);
+            g.setFont(new Font("SansSerif", Font.BOLD, 13));
+            FontMetrics fm = g.getFontMetrics();
+            String idStr = String.valueOf(p.id);
+            g.drawString(idStr, cx - fm.stringWidth(idStr) / 2, cy + fm.getAscent() / 2 - 1);
+
+            // Item badge (top-right of circle)
+            drawItemBadge(g, p, cx + r - 6, cy - r + 2);
+
+            // Name tag above player
+            drawNameTag(g, p, cx, cy - r - 4);
+        }
+    }
+
+    private void drawItemBadge(Graphics2D g, Player p, int bx, int by) {
+        Color col = null;
+        String lbl = null;
+        if (p.hasWeapon)  { col = COL_GUN;    lbl = "G"; }
+        else if (p.hasShield) { col = COL_SHIELD; lbl = "S"; }
+        if (col == null) return;
+
+        g.setColor(col);
+        g.fillOval(bx - 7, by - 7, 14, 14);
+        g.setColor(Color.WHITE);
+        g.setFont(new Font("SansSerif", Font.BOLD, 8));
         FontMetrics fm = g.getFontMetrics();
-        int totalH = lines.length * (fm.getHeight() + 2);
-        int startY = y + (h - totalH) / 2 + fm.getAscent();
-
-        for (String line : lines) {
-            int tw = fm.stringWidth(line);
-            g.setColor(new Color(0, 0, 0, 80));
-            g.drawString(line, x + (w - tw) / 2 + 1, startY + 1);
-            g.setColor(border.darker());
-            g.drawString(line, x + (w - tw) / 2, startY);
-            startY += fm.getHeight() + 2;
-        }
+        g.drawString(lbl, bx - fm.stringWidth(lbl) / 2, by + fm.getAscent() / 2 - 1);
     }
 
-    // tag popup 
-    private void drawTagPopup(Graphics2D g) {
-        String line1 = "TAGGED!";
-        String line2 = "-10 POINTS";
+    private void drawNameTag(Graphics2D g, Player p, int cx, int topY) {
+        String name  = p.name != null ? p.name : ("P" + p.id);
+        String score = p.score + "pt";
 
-        int cx = getWidth() / 2;
-        int cy = getHeight() / 2 + 40;
+        g.setFont(new Font("SansSerif", Font.BOLD, 9));
+        FontMetrics fm  = g.getFontMetrics();
+        int nameW = fm.stringWidth(name);
+        int tagW  = Math.max(nameW, fm.stringWidth(score)) + 8;
+        int tagH  = fm.getHeight() * 2 + 4;
+        int tx    = cx - tagW / 2;
+        int ty    = topY - tagH;
 
-        g.setFont(new Font("SansSerif", Font.BOLD, 26));
-        FontMetrics fm1 = g.getFontMetrics();
-        Color tagRed = new Color(220, 40, 40, (int)(tagAlpha * 255));
-        g.setColor(new Color(0, 0, 0, (int)(tagAlpha * 120)));
-        g.drawString(line1, cx - fm1.stringWidth(line1) / 2 + 2, cy + 2);
-        g.setColor(tagRed);
-        g.drawString(line1, cx - fm1.stringWidth(line1) / 2, cy);
+        // Background pill
+        g.setColor(new Color(20, 20, 30, 180));
+        g.fillRoundRect(tx, ty, tagW, tagH, 6, 6);
+
+        // Name
+        g.setColor(playerColor(p.id).brighter());
+        g.drawString(name,  cx - nameW / 2,             ty + fm.getAscent() + 1);
+
+        // Score
+        g.setColor(new Color(255, 200, 40));
+        String scoreStr = score;
+        g.drawString(scoreStr, cx - fm.stringWidth(scoreStr) / 2, ty + fm.getAscent() * 2 + 2);
+    }
+
+    // ── HUD overlay in top-left corner of the arena frame ────────────────────
+
+    private void drawHudOverlay(Graphics2D g) {
+        if (gameLogic == null) return;
+        int secondsLeft = (int)(gameLogic.getTimeRemainingMs() / 1000);
+        int connected   = (int) gameLogic.getPlayers().values().stream()
+                .filter(p -> p.connected && !p.killed).count();
+
+        String timeStr = String.format("%02d:%02d", secondsLeft / 60, secondsLeft % 60);
+        String connStr = connected + "/4 players";
+
+        g.setColor(new Color(0, 0, 0, 120));
+        g.fillRoundRect(6, 6, 130, 40, 8, 8);
 
         g.setFont(new Font("SansSerif", Font.BOLD, 15));
-        FontMetrics fm2 = g.getFontMetrics();
-        Color subRed = new Color(220, 60, 60, (int)(tagAlpha * 220));
-        g.setColor(subRed);
-        g.drawString(line2, cx - fm2.stringWidth(line2) / 2, cy + 22);
+        g.setColor(secondsLeft < 30 ? new Color(220, 60, 60) : Color.WHITE);
+        g.drawString(timeStr, 12, 24);
+
+        g.setFont(new Font("SansSerif", Font.PLAIN, 10));
+        g.setColor(new Color(180, 185, 200));
+        g.drawString(connStr, 12, 40);
+    }
+
+    // ── Waiting screen (no players yet) ──────────────────────────────────────
+
+    private void drawWaitingScreen(Graphics2D g) {
+        g.setColor(new Color(0, 0, 0, 130));
+        int pw = COLS * TILE, ph = ROWS * TILE;
+        g.fillRect(0, 0, pw, ph);
+
+        g.setFont(new Font("SansSerif", Font.BOLD, 28));
+        g.setColor(new Color(255, 200, 40));
+        String title = "Waiting for players...";
+        FontMetrics fm = g.getFontMetrics();
+        g.drawString(title, (pw - fm.stringWidth(title)) / 2, ph / 2 - 10);
+
+        g.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        g.setColor(new Color(150, 155, 170));
+        String sub = "Up to 4 players can join";
+        fm = g.getFontMetrics();
+        g.drawString(sub, (pw - fm.stringWidth(sub)) / 2, ph / 2 + 20);
+    }
+
+    // ── Broadcast ─────────────────────────────────────────────────────────────
+
+    private void broadcastFrame(BufferedImage frame) {
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(frame, "jpg", baos);
+            byte[] data = baos.toByteArray();
+            for (ClientHandler client : clients) client.sendFrame(data);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // ── Swing on-screen paint (local preview if shown as a window) ────────────
+
+    @Override
+    protected void paintComponent(Graphics g0) {
+        super.paintComponent(g0);
+        if (gameLogic != null) {
+            Graphics2D g = (Graphics2D) g0;
+            g.drawImage(renderToImage(), 0, 0, null);
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private Color playerColor(int playerId) {
+        if (playerId < 1 || playerId > 4) return Color.LIGHT_GRAY;
+        return PLAYER_COLORS[playerId - 1];
     }
 }

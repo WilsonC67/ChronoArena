@@ -1,70 +1,67 @@
 /**
  * GameServer — main entry point for the game server.
  *
- * Responsibilities:
- *   - Instantiate the shared PlayerRegistry.
- *   - Start the PlayerMonitor (UDP port 6001) on a non-daemon thread.
- *   - Start the TCPServer on a non-daemon thread so display clients can connect.
- *   - Start the GamePanel render/broadcast loop on a daemon thread.
+ * Start order:
+ *   1. PlayerRegistry + ServerUDPQueue (shared state)
+ *   2. GameLogic
+ *   3. PlayerMonitor (UDP 6001) — heartbeats from Player2 clients
+ *   4. PlayerListener (UDP 6002) — game-action packets
+ *   5. GamePanel render/broadcast loop
+ *   6. TCPMonitor — accepts display/player clients, handles JOIN registration
+ *   7. gameLogic.startGame()
  *
- * First compile the Java files:
- *   javac *.java
- *
- * Run on the host laptop:
+ * Run on the host machine:
  *   java GameServer
  *
- * Players on other machines then launch Player.java with:
- *   java -Dserver.host=<IP_OF_GAMESERVER_DEVICE> -Dplayer.id=<N> -Dservice.port=<PORT> Player2
+ * Each player machine runs ChronoArenaClient, which connects via TCP,
+ * sends "JOIN <id>", and receives the rendered arena frames.
  */
 public class GameServer {
- 
+
     private static final int ROUND_DURATION_SECONDS = 120;
- 
+
     public static void main(String[] args) {
-        System.out.println("=== Game Server starting ===");
- 
+        System.out.println("=== ChronoArena Server starting ===");
+
         // ── Shared state ──────────────────────────────────────────────────────
-        PlayerRegistry registry   = new PlayerRegistry();
+        PlayerRegistry registry    = new PlayerRegistry();
         ServerUDPQueue packetQueue = new ServerUDPQueue();
- 
+
         // ── Game logic ────────────────────────────────────────────────────────
-        // GameLogic owns its own zones, items, and player map.
-        // PacketQueue is wired in so GameLogic can clean up on disconnect.
         GameLogic gameLogic = new GameLogic(ROUND_DURATION_SECONDS);
         gameLogic.setPacketQueue(packetQueue);
- 
-        // ── PlayerMonitor (UDP) ───────────────────────────────────────────────
+
+        // ── PlayerMonitor (UDP 6001) — heartbeats ─────────────────────────────
         PlayerMonitor monitor       = new PlayerMonitor(registry);
         Thread        monitorThread = new Thread(monitor, "PlayerMonitor");
-        monitorThread.setDaemon(false);   // keeps JVM alive
+        monitorThread.setDaemon(false);
         monitorThread.start();
-        System.out.println("[GameServer] PlayerMonitor started on UDP:" + PlayerMonitor.UDP_PORT);
- 
-        // ── PlayerListener ────────────────────────────────────────────────────
+        System.out.println("[GameServer] PlayerMonitor on UDP:" + PlayerMonitor.UDP_PORT);
+
+        // ── PlayerListener (UDP 6002) — game actions ──────────────────────────
         PlayerListener playerListener = new PlayerListener(registry, packetQueue);
- 
+
         // ── GamePanel (headless render + broadcast) ───────────────────────────
         GamePanel gamePanel = new GamePanel();
         gamePanel.setPacketQueue(packetQueue);
         gamePanel.setPlayerListener(playerListener);
         gamePanel.setGameLogic(gameLogic);
- 
-        // Game-loop on a daemon thread — dies when the JVM exits.
+
         Thread gameLoopThread = new Thread(gamePanel, "GameLoop");
         gameLoopThread.setDaemon(true);
         gameLoopThread.start();
-        System.out.println("[GameServer] GamePanel render loop started.");
- 
-        // ── TCPServer (display broadcasting) ─────────────────────────────────
-        int       tcpPort        = PropertyFileReader.getTCPPort();
-        TCPMonitor tcpServer      = new TCPMonitor(tcpPort, gamePanel);
-        Thread    tcpServerThread = new Thread(tcpServer, "TCPServer");
-        tcpServerThread.setDaemon(false);  // keeps JVM alive alongside PlayerMonitor
-        tcpServerThread.start();
-        System.out.println("[GameServer] TCPServer started on TCP:" + tcpPort);
- 
+        System.out.println("[GameServer] Game loop started.");
+
+        // ── TCPMonitor — display + player clients ─────────────────────────────
+        int        tcpPort   = PropertyFileReader.getTCPPort();
+        TCPMonitor tcpServer = new TCPMonitor(tcpPort, gamePanel, gameLogic);
+        Thread     tcpThread = new Thread(tcpServer, "TCPMonitor");
+        tcpThread.setDaemon(false);
+        tcpThread.start();
+        System.out.println("[GameServer] TCPMonitor on TCP:" + tcpPort);
+
         // ── Start the round ───────────────────────────────────────────────────
         gameLogic.startGame();
-        System.out.println("[GameServer] Ready — waiting for players and display clients.");
+        System.out.println("[GameServer] Ready — waiting for players.");
     }
 }

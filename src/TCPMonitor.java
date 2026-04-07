@@ -3,41 +3,43 @@ import java.net.ServerSocket;
 import java.net.Socket;
 
 /**
- * TCPServer — listens for incoming client TCP connections.
+ * TCPMonitor — listens for incoming client TCP connections.
  *
- * For each new connection it creates a ClientHandler, registers it with
- * GamePanel so it receives broadcast frames, then moves on to accept the
- * next client. Disconnection and cleanup are handled by ClientHandler itself.
- *
- * Implements Runnable so GameServer can run it on a dedicated non-daemon
- * thread, keeping the JVM alive alongside PlayerMonitor.
+ * For each new connection it creates a ClientHandler (which handles the JOIN
+ * handshake and player registration in GameLogic), runs it on a short thread,
+ * then loops back to accept the next client.
  */
 public class TCPMonitor implements Runnable {
- 
+
     private final int       port;
     private final GamePanel gamePanel;
- 
-    public TCPMonitor(int port, GamePanel gamePanel) {
+    private final GameLogic gameLogic;
+
+    public TCPMonitor(int port, GamePanel gamePanel, GameLogic gameLogic) {
         this.port      = port;
         this.gamePanel = gamePanel;
+        this.gameLogic = gameLogic;
     }
- 
+
     @Override
     public void run() {
         try (ServerSocket serverSocket = new ServerSocket(port)) {
-            System.out.println("[TCPServer] Listening for display clients on TCP:" + port);
- 
+            System.out.println("[TCPMonitor] Listening for clients on TCP:" + port);
+
             while (!Thread.currentThread().isInterrupted()) {
                 Socket clientSocket = serverSocket.accept();
-                System.out.println("[TCPServer] Client connected: " + clientSocket.getRemoteSocketAddress());
- 
-                ClientHandler handler = new ClientHandler(clientSocket, gamePanel);
-                gamePanel.addClient(handler);
+                System.out.println("[TCPMonitor] Incoming connection from "
+                        + clientSocket.getRemoteSocketAddress());
+
+                ClientHandler handler = new ClientHandler(clientSocket, gamePanel, gameLogic);
+                // Handshake runs on its own thread so accept() isn't blocked
+                Thread t = new Thread(handler, "ClientHandshake-" + clientSocket.getPort());
+                t.setDaemon(true);
+                t.start();
             }
- 
+
         } catch (IOException e) {
-            System.err.println("[TCPServer] Server socket error: " + e.getMessage());
+            System.err.println("[TCPMonitor] Server socket error: " + e.getMessage());
         }
     }
 }
- 
