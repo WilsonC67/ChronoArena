@@ -12,77 +12,75 @@ import javax.swing.*;
  * Protocol:
  *   C→S  "JOIN <playerId>\n"
  *   S→C  "WELCOME <assignedId>\n"   (or "REJECT <reason>\n")
- *   S→C  repeated: [int frameLength][byte[] jpegData]
+ *   S→C  repeated binary frames: [int length][byte[] jpeg]
  */
 public class DisplayPanel extends JPanel {
 
-    private static final int    TILE     = PropertyFileReader.getTileSize();
-    private static final int    COLS     = PropertyFileReader.getColNum();
-    private static final int    ROWS     = PropertyFileReader.getRowNum();
-    private static final String IP       = PropertyFileReader.getIP();
-    private static final int    TCP_PORT = PropertyFileReader.getTCPPort();
+    private static final int TILE     = PropertyFileReader.getTileSize();
+    private static final int COLS     = PropertyFileReader.getColNum();
+    private static final int ROWS     = PropertyFileReader.getRowNum();
+    private static final int TCP_PORT = PropertyFileReader.getTCPPort();
+
+    private final String serverIp;
+    private final int    playerId;
 
     private BufferedImage currentFrame;
     private final Object  frameLock = new Object();
-    private String        statusMsg = "Connecting to server...";
+    private String        statusMsg = "Connecting...";
 
-    /** Player ID this panel will send in the JOIN message. 0 = display-only. */
-    private final int playerId;
-
-    public DisplayPanel(int playerId) {
+    public DisplayPanel(String serverIp, int playerId) {
+        this.serverIp = serverIp;
         this.playerId = playerId;
         setPreferredSize(new Dimension(COLS * TILE, ROWS * TILE));
         setBackground(Color.BLACK);
-        connectToServer(IP, TCP_PORT);
+        connectToServer();
     }
 
-    /** Convenience — display-only mode (no JOIN as a player). */
-    public DisplayPanel() { this(0); }
+    // ── Connection loop ───────────────────────────────────────────────────────
 
-    // ── Connect & stream ──────────────────────────────────────────────────────
-
-    private void connectToServer(String ip, int port) {
+    private void connectToServer() {
         Thread t = new Thread(() -> {
             while (!Thread.currentThread().isInterrupted()) {
                 try {
-                    setStatus("Connecting to " + ip + ":" + port + " ...");
+                    setStatus("Connecting to " + serverIp + ":" + TCP_PORT + " ...");
+
                     Socket socket = new Socket();
-                    socket.connect(new InetSocketAddress(InetAddress.getByName(ip), port), 5_000);
+                    socket.connect(
+                            new InetSocketAddress(InetAddress.getByName(serverIp), TCP_PORT),
+                            5_000);
 
                     OutputStream rawOut = socket.getOutputStream();
                     DataInputStream in  = new DataInputStream(socket.getInputStream());
 
                     // 1. Send JOIN
-                    String joinMsg = "JOIN " + playerId + "\n";
-                    rawOut.write(joinMsg.getBytes());
+                    rawOut.write(("JOIN " + playerId + "\n").getBytes());
                     rawOut.flush();
 
-                    // 2. Read the text response line (WELCOME or REJECT)
+                    // 2. Read text response (one line)
                     StringBuilder sb = new StringBuilder();
                     int ch;
                     while ((ch = in.read()) != -1 && ch != '\n') sb.append((char) ch);
                     String response = sb.toString().trim();
 
                     if (response.startsWith("REJECT")) {
-                        setStatus("Server rejected: " + response.substring(7));
+                        setStatus("Rejected: " + response.substring(7).trim());
                         socket.close();
                         Thread.sleep(5_000);
                         continue;
                     }
 
-                    // WELCOME <id>
                     if (response.startsWith("WELCOME")) {
                         int assignedId = Integer.parseInt(response.split(" ")[1]);
-                        setStatus("Connected as player " + assignedId);
-                        System.out.println("[DisplayPanel] " + response);
+                        setStatus("Connected — Player " + assignedId);
+                        System.out.println("[DisplayPanel] Server says: " + response);
                     }
 
-                    // 3. Stream binary frames
+                    // 3. Stream frames until disconnect
                     streamFrames(in);
                     socket.close();
 
                 } catch (Exception e) {
-                    setStatus("Lost connection — retrying...");
+                    setStatus("Connection lost — retrying in 3 s...");
                     System.err.println("[DisplayPanel] " + e.getMessage());
                 }
                 try { Thread.sleep(3_000); } catch (InterruptedException ex) { break; }
@@ -124,7 +122,8 @@ public class DisplayPanel extends JPanel {
                 g.setColor(new Color(255, 200, 40));
                 g.setFont(new Font("SansSerif", Font.BOLD, 18));
                 FontMetrics fm = g.getFontMetrics();
-                g.drawString(statusMsg, (getWidth() - fm.stringWidth(statusMsg)) / 2,
+                g.drawString(statusMsg,
+                        (getWidth()  - fm.stringWidth(statusMsg)) / 2,
                         getHeight() / 2);
             }
         }
