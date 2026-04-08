@@ -3,6 +3,19 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class GameLogic {
 
+    // Beam class for visual effects
+    public static class Beam {
+        public int x, y, dx, dy, length, ticksLeft;
+        public Beam(int x, int y, int dx, int dy, int length, int ticksLeft) {
+            this.x = x;
+            this.y = y;
+            this.dx = dx;
+            this.dy = dy;
+            this.length = length;
+            this.ticksLeft = ticksLeft;
+        }
+    }
+
     public static final int GRID_COLS = PropertyFileReader.getColNum();
     public static final int GRID_ROWS = PropertyFileReader.getRowNum();
 
@@ -14,6 +27,7 @@ public class GameLogic {
     private final Map<Integer, Player> players = new ConcurrentHashMap<>();
     private final Zone[]               zones;
     private final List<Item>           items   = new ArrayList<>();
+    private final List<Beam>           beams   = new ArrayList<>();
     private final Random               random  = new Random();
 
     private int     itemIdCounter      = 0;
@@ -40,7 +54,7 @@ public class GameLogic {
                 addPlayer(pa.playerId, "Player " + pa.playerId);
             Player player = players.get(pa.playerId);
             if (player == null || !player.connected || player.killed) continue;
-            handleAction(player, pa.action);
+            handleAction(player, pa);
 
         }
 
@@ -53,19 +67,22 @@ public class GameLogic {
         if (tick % ITEM_SPAWN_INTERVAL == 0) spawnItem();
         if (tick % Zone.POINTS_INTERVAL  == 0) updateZoneScores();
 
+        // Update beams
+        beams.removeIf(beam -> --beam.ticksLeft <= 0);
+
         if (System.currentTimeMillis() >= roundEndTimeMs) {
             gameActive = false;
             System.out.println("[GameLogic] Round over! Winner: " + getWinner());
         }
     }
 
-    private void handleAction(Player player, String action) {
-        switch (action) {
+    private void handleAction(Player player, PlayerAction pa) {
+        switch (pa.action) {
             case "MOVE_UP":        handleMove(player,  0, -1); break;
             case "MOVE_DOWN":      handleMove(player,  0,  1); break;
             case "MOVE_LEFT":      handleMove(player, -1,  0); break;
             case "MOVE_RIGHT":     handleMove(player,  1,  0); break;
-            case "SHOOT":          handleShoot(player);        break;
+            case "SHOOT":          handleShoot(player, pa.x, pa.y);        break;
             case "PICKUP_POWERUP": checkItemCollection(player);break;
             default: break;
         }
@@ -87,27 +104,11 @@ public class GameLogic {
     }
 
     // freeze nearest player within range; shield blocks the hit
-    private void handleShoot(Player attacker) {
+    private void handleShoot(Player attacker, float dx, float dy) {
         if (!attacker.hasWeapon || attacker.frozen) return;
 
-        Player target  = null;
-        int    minDist = Integer.MAX_VALUE;
-        for (Player p : players.values()) {
-            if (p.id == attacker.id || !p.connected || p.killed) continue;
-            int dist = Math.abs(p.x - attacker.x) + Math.abs(p.y - attacker.y);
-            if (dist <= FREEZE_RANGE && dist < minDist) { minDist = dist; target = p; }
-        }
-
-        if (target == null) return;
-        attacker.hasWeapon = false;
-
-        if (target.hasShield) {
-            target.hasShield = false;
-            System.out.printf("[GameLogic] Player %d's shield blocked freeze%n", target.id);
-        } else {
-            target.applyFreeze();
-            System.out.printf("[GameLogic] Player %d froze player %d%n", attacker.id, target.id);
-        }
+        // Use Gun.shoot
+        Gun.shoot(attacker, dx, dy, players, GRID_COLS, GRID_ROWS, beams);
     }
 
     // lower player ID wins if two players are on the same item tile
@@ -322,6 +323,7 @@ public class GameLogic {
     public Map<Integer, Player> getPlayers()         { return players; }
     public Zone[]               getZones()           { return zones;   }
     public List<Item>           getItems()           { return items;   }
+    public List<Beam>           getBeams()           { return beams;   }
     public boolean              isActive()           { return gameActive; }
     public long                 getTimeRemainingMs() { return Math.max(0, roundEndTimeMs - System.currentTimeMillis()); }
 }

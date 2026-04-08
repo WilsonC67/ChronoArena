@@ -30,9 +30,11 @@ public class TestModels {
     // ---- PlayerAction ----
 
     static void testPlayerAction() {
-        PlayerAction a = new PlayerAction(1, "MOVE_UP", 12345L, 7);
+        PlayerAction a = new PlayerAction(1, "MOVE_UP", 0.0f, 0.0f, 12345L, 7);
         check("PlayerAction stores playerId",  a.playerId == 1);
         check("PlayerAction stores action",    a.action.equals("MOVE_UP"));
+        check("PlayerAction stores x",         a.x == 0.0f);
+        check("PlayerAction stores y",         a.y == 0.0f);
         check("PlayerAction stores timestamp", a.timestamp == 12345L);
         check("PlayerAction stores seq",       a.seq == 7);
         check("PlayerAction toString has id",  a.toString().contains("1"));

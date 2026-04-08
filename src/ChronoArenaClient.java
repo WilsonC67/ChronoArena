@@ -34,6 +34,7 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
 
     // ── Movement flags ────────────────────────────────────────────────────────
     private boolean holdUp, holdDown, holdLeft, holdRight;
+    private int lastDx = 0, lastDy = 0;
 
     // ── UI ────────────────────────────────────────────────────────────────────
     private HUDPanel       hud;
@@ -97,6 +98,23 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
         pack();
         setLocationRelativeTo(null);
         setVisible(true);
+        disableSpaceOnButtons(this);
+
+        // Add global key event dispatcher for space to shoot
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(new KeyEventDispatcher() {
+            @Override
+            public boolean dispatchKeyEvent(KeyEvent e) {
+                if (e.getID() == KeyEvent.KEY_PRESSED && e.getKeyCode() == KeyEvent.VK_SPACE) {
+                    System.out.println("[Client] Shooting in direction " + lastDx + "," + lastDy);
+                    sendUDP(localPlayerId + "," + UDP_PORT + ",SHOOT," + lastDx + ".0," + lastDy + ".0,," + udpSeq++);
+                    // Update UI to remove gun icon after shooting
+                    actionbar.updateItemHeld("NONE");
+                    return true; // consume the event
+                }
+                return false;
+            }
+        });
+
     }
 
     // ── Key input → UDP movement ──────────────────────────────────────────────
@@ -114,6 +132,7 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
         bindKey(im, KeyEvent.VK_S,     "DOWN");
         bindKey(im, KeyEvent.VK_A,     "LEFT");
         bindKey(im, KeyEvent.VK_D,     "RIGHT");
+        bindKey(im, KeyEvent.VK_SPACE, "SHOOT");
 
         am.put("UP_P",    press(() -> { if (!holdUp)    { holdUp    = true;  repaintJoystick(); moveUDP(0, -1); } }));
         am.put("DOWN_P",  press(() -> { if (!holdDown)  { holdDown  = true;  repaintJoystick(); moveUDP(0,  1); } }));
@@ -124,6 +143,8 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
         am.put("DOWN_R",  release(() -> { holdDown  = false; repaintJoystick(); }));
         am.put("LEFT_R",  release(() -> { holdLeft  = false; repaintJoystick(); }));
         am.put("RIGHT_R", release(() -> { holdRight = false; repaintJoystick(); }));
+
+        am.put("SHOOT_P", press(() -> sendUDP(localPlayerId + "," + UDP_PORT + ",SHOOT," + lastDx + ".0," + lastDy + ".0,," + udpSeq++)));
     }
 
     private void bindKey(InputMap im, int keyCode, String dir) {
@@ -146,6 +167,8 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
         else               action = "MOVE_DOWN";
         // Format matches PlayerListener: playerId,tcpPort,action,x,y,extra,seq
         sendUDP(localPlayerId + "," + UDP_PORT + "," + action + ",0.0,0.0,," + udpSeq++);
+        lastDx = dx;
+        lastDy = dy;
     }
 
     private void repaintJoystick() { if (sidebar != null) sidebar.repaint(); }
@@ -176,6 +199,20 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
             System.err.println("[UDP] Send failed: " + e.getMessage());
         }
     }
+
+    private void disableSpaceOnButtons(Container container) {
+    for (Component c : container.getComponents()) {
+        if (c instanceof AbstractButton btn) {
+            btn.getInputMap(JComponent.WHEN_FOCUSED)
+               .put(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0, false), "none");
+            btn.getInputMap(JComponent.WHEN_FOCUSED)
+               .put(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0, true), "none");
+        }
+        if (c instanceof Container child) {
+            disableSpaceOnButtons(child);
+        }
+    }
+}
 
     // ── Entry point ───────────────────────────────────────────────────────────
 
