@@ -44,8 +44,12 @@ public class PropertyFileReader {
         return intProp("tcp.port", 1234);
     }
 
-    public static int getUDPPort() {
-        return intProp("udp.port", 1235);
+    public static int getPlayerMonitorPort() {
+        return intProp("playerMonitor.port", 6001);
+    }
+
+    public static int getPlayerListenerPort() {
+        return intProp("playerListener.port", 6002);
     }
 
     public static int getClientPort() {

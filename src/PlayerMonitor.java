@@ -29,7 +29,7 @@ import java.net.DatagramSocket;
  */
 public class PlayerMonitor implements Runnable {
 
-    public static final  int UDP_PORT       =  PropertyFileReader.getUDPPort();
+    public static final  int UDP_PORT       =  PropertyFileReader.getPlayerMonitorPort();
     private static final int BUFFER_SIZE    = 512;
     private static final int SWEEP_INTERVAL = 10_000;   // ms between dead-player sweeps
 

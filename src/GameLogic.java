@@ -41,6 +41,7 @@ public class GameLogic {
             Player player = players.get(pa.playerId);
             if (player == null || !player.connected || player.killed) continue;
             handleAction(player, pa.action);
+
         }
 
         for (Player p : players.values()) {
