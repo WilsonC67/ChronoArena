@@ -40,6 +40,7 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
     private SidebarPanel   sidebar;
     private ActionbarPanel actionbar;
     private GameOverPanel  gameOverPanel;
+    private LobbyPanel     lobbyPanel;
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -78,14 +79,18 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
         DisplayPanel displayPanel = new DisplayPanel(serverIp, localPlayerId);
         Dimension dp = displayPanel.getPreferredSize();
 
-        // Layer displayPanel + game-over overlay
+        // Layer displayPanel + game-over overlay + lobby overlay
         JLayeredPane center = new JLayeredPane();
         center.setPreferredSize(dp);
         displayPanel.setBounds(0, 0, dp.width, dp.height);
         gameOverPanel = new GameOverPanel();
         gameOverPanel.setBounds(0, 0, dp.width, dp.height);
+        lobbyPanel = new LobbyPanel();
+        lobbyPanel.setBounds(0, 0, dp.width, dp.height);
+        lobbyPanel.setOnCountdownEnd(this::onGameStart);
         center.add(displayPanel,  JLayeredPane.DEFAULT_LAYER);
         center.add(gameOverPanel, JLayeredPane.PALETTE_LAYER);
+        center.add(lobbyPanel,    JLayeredPane.MODAL_LAYER);
 
         setLayout(new BorderLayout());
         add(hud,      BorderLayout.NORTH);
@@ -151,6 +156,15 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
     private void repaintJoystick() { if (sidebar != null) sidebar.repaint(); }
 
     // ── GameEventListener ─────────────────────────────────────────────────────
+
+    /**
+     * Called by server integration when a player connects or disconnects.
+     * connected[i] = true means player slot i+1 is in the lobby.
+     * Example: connected = {true, true, false, false} → 2/4 players connected.
+     */
+    public void updateLobby(boolean[] connected) {
+        SwingUtilities.invokeLater(() -> lobbyPanel.updatePlayers(connected));
+    }
 
     @Override public void onGameStart()    { System.out.println("=== GAME START ==="); }
     @Override public void onPlayerFrozen() { System.out.println("=== PLAYER FROZEN ==="); }
