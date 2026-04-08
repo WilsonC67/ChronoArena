@@ -106,7 +106,7 @@ public class PlayerListener implements Runnable {
             // Register the player on first contact so the registry always has them
             registry.register(playerId, sourceIp, tcpPort);
 
-            PlayerAction pa = new PlayerAction(playerId, action.name(),
+            PlayerAction pa = new PlayerAction(playerId, action.name(), x, y,
                     System.currentTimeMillis(), seq);
             packetQueue.enqueue(pa, currentTick);
 

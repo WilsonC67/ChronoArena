@@ -41,7 +41,7 @@ public class TestServerUDPQueue {
     }
 
     private static PlayerAction makeAction(int playerId, String action, int seq) {
-        return new PlayerAction(playerId, action, System.currentTimeMillis(), seq);
+        return new PlayerAction(playerId, action, 0.0f, 0.0f, System.currentTimeMillis(), seq);
     }
 
     private static void printDrained(List<PlayerAction> actions) {

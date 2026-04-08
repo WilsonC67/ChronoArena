@@ -118,6 +118,7 @@ public class GamePanel extends JPanel implements Runnable {
             drawZones(g);
             drawItems(g);
             drawPlayers(g);
+            drawBeams(g);
             drawHudOverlay(g);
         } else {
             drawWaitingScreen(g);
@@ -381,6 +382,22 @@ public class GamePanel extends JPanel implements Runnable {
         g.setColor(new Color(255, 200, 40));
         String scoreStr = score;
         g.drawString(scoreStr, cx - fm.stringWidth(scoreStr) / 2, ty + fm.getAscent() * 2 + 2);
+    }
+
+    // ── Beams ─────────────────────────────────────────────────────────────────
+
+    private void drawBeams(Graphics2D g) {
+        List<GameLogic.Beam> beams = gameLogic.getBeams();
+        g.setColor(Color.RED);
+        g.setStroke(new BasicStroke(3f));
+        for (GameLogic.Beam beam : beams) {
+            int x1 = beam.x * TILE + TILE / 2;
+            int y1 = beam.y * TILE + TILE / 2;
+            int x2 = (beam.x + beam.dx * beam.length) * TILE + TILE / 2;
+            int y2 = (beam.y + beam.dy * beam.length) * TILE + TILE / 2;
+            g.drawLine(x1, y1, x2, y2);
+        }
+        g.setStroke(new BasicStroke(1f));
     }
 
     // ── HUD overlay in top-left corner of the arena frame ────────────────────
