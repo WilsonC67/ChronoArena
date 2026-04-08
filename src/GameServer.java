@@ -40,6 +40,9 @@ public class GameServer {
 
         // ── PlayerListener (UDP 6002) — game actions ──────────────────────────
         PlayerListener playerListener = new PlayerListener(registry, packetQueue);
+        Thread         listenerThread = new Thread(playerListener, "PlayerListener");
+        listenerThread.setDaemon(false);
+        listenerThread.start();
 
         // ── GamePanel (headless render + broadcast) ───────────────────────────
         GamePanel gamePanel = new GamePanel();

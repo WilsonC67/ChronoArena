@@ -24,7 +24,7 @@ import java.net.*;
 public class ChronoArenaClient extends JFrame implements GameEventListener {
 
     // ── Ports (from config.properties — same on all machines) ─────────────────
-    private static final int UDP_PORT = PropertyFileReader.getUDPPort();
+    private static final int UDP_PORT = PropertyFileReader.getPlayerListenerPort();
 
     // ── Network ───────────────────────────────────────────────────────────────
     private final String       serverIp;
@@ -224,7 +224,7 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
         final int    finalPid = pid;
 
         System.out.printf("[Client] Connecting to %s  (TCP:%d  UDP:%d)  as Player %d%n",
-                ip, PropertyFileReader.getTCPPort(), PropertyFileReader.getUDPPort(), finalPid);
+                ip, PropertyFileReader.getTCPPort(), PropertyFileReader.getPlayerMonitorPort(), finalPid);
 
         SwingUtilities.invokeLater(() -> new ChronoArenaClient(ip, finalPid).launch());
     }
