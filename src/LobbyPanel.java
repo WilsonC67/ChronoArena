@@ -4,20 +4,22 @@ import java.awt.*;
 // overlays the map before the game starts
 public class LobbyPanel extends JPanel {
 
-    private final JLabel[] playerSlots = new JLabel[4];
-    private final JLabel statusLabel;
-    private final JLabel countdownLabel;
-    private final boolean[] playerConnected = new boolean[4];
-    private final boolean[] playerReady = new boolean[4];
+    private static final int MIN_PLAYERS = 4; // auto-start when this many connect
 
-    private Timer countdownTimer;
-    private int secondsLeft = 5;
+    private final JLabel[]  playerSlots     = new JLabel[4];
+    private final JLabel    statusLabel;
+    private final JLabel    countdownLabel;
+    private final boolean[] playerConnected = new boolean[4];
+    private final boolean[] playerReady     = new boolean[4];
+
+    private Timer    countdownTimer;
+    private int      secondsLeft   = 5;
     private Runnable onCountdownEnd;
 
     public LobbyPanel() {
         setLayout(null);
         setOpaque(true);
-        setBackground(new Color(10, 10, 20, 230));
+        setBackground(new Color(10, 10, 20));
         setVisible(true);
 
         // title
@@ -35,12 +37,11 @@ public class LobbyPanel extends JPanel {
         add(sub);
 
         // player slots
-        Color[] accents = Style.PLAYER_ACCENTS;
         for (int i = 0; i < 4; i++) {
             playerSlots[i] = new JLabel("PLAYER " + (i + 1) + " — WAITING...", SwingConstants.CENTER);
             playerSlots[i].setFont(new Font("SansSerif", Font.BOLD, 18));
             playerSlots[i].setForeground(new Color(70, 75, 95));
-            playerSlots[i].setBounds(0, 180 + i * 52, 900, 36);
+            playerSlots[i].setBounds(0, 180 + i * 52, 900, 52);
             add(playerSlots[i]);
         }
 
@@ -51,7 +52,7 @@ public class LobbyPanel extends JPanel {
         statusLabel.setBounds(0, 400, 900, 24);
         add(statusLabel);
 
-        // countdown label (hidden until all players connect and are ready)
+        // countdown label
         countdownLabel = new JLabel("", SwingConstants.CENTER);
         countdownLabel.setFont(new Font("SansSerif", Font.BOLD, 36));
         countdownLabel.setForeground(new Color(255, 200, 40));
@@ -59,7 +60,7 @@ public class LobbyPanel extends JPanel {
         add(countdownLabel);
     }
 
-    // called by ChronoArenaClient when a player connects or disconnects.
+    // called by ChronoArenaClient when a player connects or disconnects
     public void updatePlayers(boolean[] connected) {
         int count = 0;
         for (int i = 0; i < 4; i++) {
@@ -71,12 +72,10 @@ public class LobbyPanel extends JPanel {
             } else {
                 playerSlots[i].setText("PLAYER " + (i + 1) + " — WAITING...");
                 playerSlots[i].setForeground(new Color(70, 75, 95));
-                playerReady[i] = false; // Reset ready status if disconnected
+                playerReady[i] = false;
             }
         }
-
         statusLabel.setText(count + " / 4 players connected");
-
         checkIfShouldStartCountdown();
     }
 
@@ -89,22 +88,17 @@ public class LobbyPanel extends JPanel {
     }
 
     private void checkIfShouldStartCountdown() {
-        boolean allConnected = true;
+        int count = 0;
+        for (boolean c : playerConnected) if (c) count++;
 
-        for (int i = 0; i < 4; i++) {
-            if (!playerConnected[i]) {
-                allConnected = false;
-            }
-        }
-
-        if (allConnected) {
+        if (count >= MIN_PLAYERS) {
             startCountdown();
         } else {
             stopCountdown();
         }
     }
 
-    // set the callback that fires when the countdown hits zero.
+    // set the callback that fires when the countdown hits zero
     public void setOnCountdownEnd(Runnable callback) {
         this.onCountdownEnd = callback;
     }

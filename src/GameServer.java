@@ -1,24 +1,11 @@
 /**
  * GameServer — main entry point for the game server.
- *
- * Start order:
- *   1. PlayerRegistry + ServerUDPQueue (shared state)
- *   2. GameLogic
- *   3. PlayerMonitor (UDP 6001) — heartbeats from Player2 clients
- *   4. PlayerListener (UDP 6002) — game-action packets
- *   5. GamePanel render/broadcast loop
- *   6. TCPMonitor — accepts display/player clients, handles JOIN registration
- *   7. gameLogic.startGame()
- *
- * Run on the host machine:
- *   java GameServer
- *
- * Each player machine runs ChronoArenaClient, which connects via TCP,
- * sends "JOIN <id>", and receives the rendered arena frames.
  */
 public class GameServer {
 
-    private static final int ROUND_DURATION_SECONDS = 120;
+    private static final int  ROUND_DURATION_SECONDS = 120;
+    private static final int  REQUIRED_PLAYERS       = 4;
+    private static final long LOBBY_COUNTDOWN_MS     = 5_600; // 5s countdown + 0.6s "GO!" display
 
     public static void main(String[] args) {
         System.out.println("=== ChronoArena Server starting ===");
@@ -63,8 +50,21 @@ public class GameServer {
         tcpThread.start();
         System.out.println("[GameServer] TCPMonitor on TCP:" + tcpPort);
 
-        // ── Start the round ───────────────────────────────────────────────────
+        // ── Start game, then wait for all players and start round timer ───────
         gameLogic.startGame();
         System.out.println("[GameServer] Ready — waiting for players.");
+
+        // Watch for all players to join, then mirror the client lobby countdown
+        Thread roundStarter = new Thread(() -> {
+            System.out.println("[GameServer] Waiting for " + REQUIRED_PLAYERS + " players...");
+            while (gameLogic.getPlayers().size() < REQUIRED_PLAYERS) {
+                try { Thread.sleep(200); } catch (InterruptedException e) { return; }
+            }
+            System.out.println("[GameServer] All players connected — starting lobby countdown.");
+            try { Thread.sleep(LOBBY_COUNTDOWN_MS); } catch (InterruptedException e) { return; }
+            gameLogic.startRound();
+        }, "RoundStarter");
+        roundStarter.setDaemon(true);
+        roundStarter.start();
     }
 }
