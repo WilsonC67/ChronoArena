@@ -34,6 +34,13 @@ public class DisplayPanel extends JPanel {
     private java.util.function.BiConsumer<Integer, int[]> scoreCallback;
     // optional callback fired with zone updates: (zoneIndex, stateName, ownerId, progress)
     private ZoneUpdateCallback zoneCallback;
+    // optional callback fired with player state updates
+    private PlayerUpdateCallback playerCallback;
+
+    @FunctionalInterface
+    public interface PlayerUpdateCallback {
+        void onPlayerUpdate(int id, int score, int hp, boolean frozen, boolean hasWeapon, boolean hasShield, boolean speedBoost);
+    }
 
     @FunctionalInterface
     public interface ZoneUpdateCallback {
@@ -61,6 +68,11 @@ public class DisplayPanel extends JPanel {
     /** Optional — fired each second with zone state updates. */
     public void setZoneCallback(ZoneUpdateCallback cb) {
         this.zoneCallback = cb;
+    }
+
+    /** Optional — fired each second with each player's state. */
+    public void setPlayerCallback(PlayerUpdateCallback cb) {
+        this.playerCallback = cb;
     }
 
     // ── Connection loop ───────────────────────────────────────────────────────
@@ -146,6 +158,21 @@ public class DisplayPanel extends JPanel {
                 boolean[] connected = new boolean[4];
                 for (int i = 0; i < 4; i++) connected[i] = parts[i + 1].equals("1");
                 lobbyCallback.accept(connected);
+            }
+        } else if (line.startsWith("PLAYER_UPDATE,") && playerCallback != null) {
+            String[] parts = line.split(",");
+            // each player block is 7 fields: id,score,hp,frozen,hasWeapon,hasShield,speedBoost
+            int i = 1;
+            while (i + 6 < parts.length) {
+                int     id         = Integer.parseInt(parts[i]);
+                int     score      = Integer.parseInt(parts[i+1]);
+                int     hp         = Integer.parseInt(parts[i+2]);
+                boolean frozen     = parts[i+3].equals("1");
+                boolean hasWeapon  = parts[i+4].equals("1");
+                boolean hasShield  = parts[i+5].equals("1");
+                boolean speedBoost = parts[i+6].equals("1");
+                playerCallback.onPlayerUpdate(id, score, hp, frozen, hasWeapon, hasShield, speedBoost);
+                i += 7;
             }
         } else if (line.startsWith("ZONE_UPDATE,") && zoneCallback != null) {
             String[] parts = line.split(",");

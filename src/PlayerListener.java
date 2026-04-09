@@ -93,7 +93,7 @@ public class PlayerListener implements Runnable {
             PlayerActionEnum action   = PlayerActionEnum.fromString(parts[2].trim());
             float            x        = Float.parseFloat(parts[3].trim());
             float            y        = Float.parseFloat(parts[4].trim());
-            String           extra    = (parts.length >= 6) ? parts[5].trim() : "";
+            if (parts.length >= 6) { parts[5].trim(); }
             // seq is parts[6] if present, else 0
             int seq = (parts.length >= 7) ? Integer.parseInt(parts[6].trim()) : 0;
 

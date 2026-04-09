@@ -33,7 +33,7 @@ public class GamePanel extends JPanel implements Runnable {
 
     // ── Zone colours ──────────────────────────────────────────────────────────
     private static final Color COL_CONTESTED  = new Color(230, 150,  20);
-    private static final Color COL_CONTROLLED = new Color( 40, 160,  60);
+
     private static final Color COL_CAPTURING  = new Color( 60, 100, 220);
     private static final Color COL_UNCLAIMED  = new Color(160, 140,  60);
 
@@ -102,6 +102,8 @@ public class GamePanel extends JPanel implements Runnable {
             if (tick % TICK_RATE == 0 && gameLogic != null) broadcastScoreUpdate();
             // Broadcast zone progress every tick for smooth animation
             if (gameLogic != null) broadcastZoneUpdate();
+            // Broadcast player state once per second
+            if (tick % TICK_RATE == 0 && gameLogic != null) broadcastPlayerUpdate();
 
             long sleep = tickMs - (System.currentTimeMillis() - start);
             if (sleep > 0) {
@@ -403,7 +405,30 @@ public class GamePanel extends JPanel implements Runnable {
         }
         g.setStroke(new BasicStroke(1f));
     }
-    
+
+    // ── HUD overlay in top-left corner of the arena frame ────────────────────
+
+    private void drawHudOverlay(Graphics2D g) throws Exception {
+        if (gameLogic == null) return;
+        int secondsLeft = (int)(gameLogic.getTimeRemainingMs() / 1000);
+        int connected   = (int) gameLogic.getPlayers().values().stream()
+                .filter(p -> p.connected && !p.killed).count();
+
+        String timeStr = String.format("%02d:%02d", secondsLeft / 60, secondsLeft % 60);
+        String connStr = connected + "/4 players";
+
+        g.setColor(new Color(0, 0, 0, 120));
+        g.fillRoundRect(6, 6, 130, 40, 8, 8);
+
+        g.setFont(new Font("SansSerif", Font.BOLD, 15));
+        g.setColor(secondsLeft < 30 ? new Color(220, 60, 60) : Color.WHITE);
+        g.drawString(timeStr, 12, 24);
+
+        g.setFont(new Font("SansSerif", Font.PLAIN, 10));
+        g.setColor(new Color(180, 185, 200));
+        g.drawString(connStr, 12, 40);
+    }
+
     // ── Waiting screen (no players yet) ──────────────────────────────────────
 
     private void drawWaitingScreen(Graphics2D g) {
@@ -440,6 +465,25 @@ public class GamePanel extends JPanel implements Runnable {
             sb.append(",").append(zone.state.name());
             sb.append(",").append(zone.ownerId);
             sb.append(",").append(zone.captureProgress);
+        }
+        for (ClientHandler client : clients) client.sendTextMessage(sb.toString());
+    }
+
+    private void broadcastPlayerUpdate() {
+        // Format: PLAYER_UPDATE,id,score,hp,frozen,hasWeapon,hasShield,speedBoost per player
+        java.util.Map<Integer, Player> players = gameLogic.getPlayers();
+        StringBuilder sb = new StringBuilder("PLAYER_UPDATE");
+        for (int i = 1; i <= 4; i++) {
+            Player p = players.get(i);
+            if (p != null && p.connected && !p.killed) {
+                sb.append(",").append(p.id);
+                sb.append(",").append(p.score);
+                sb.append(",").append(p.hp);
+                sb.append(",").append(p.frozen   ? 1 : 0);
+                sb.append(",").append(p.hasWeapon ? 1 : 0);
+                sb.append(",").append(p.hasShield ? 1 : 0);
+                sb.append(",").append(p.speedBoost? 1 : 0);
+            }
         }
         for (ClientHandler client : clients) client.sendTextMessage(sb.toString());
     }

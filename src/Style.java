@@ -26,13 +26,14 @@ public final class Style {
     public static final Color ITEM_ENERGY = new Color(255, 200, 40);
 
     public static final Color STATUS_FROZEN = new Color(100, 180, 255);
-    public static final Color STATUS_OK = new Color(100, 220, 100);
+    public static final Color STATUS_OK     = new Color(100, 220, 100);
+    public static final Color STATUS_SPEED  = new Color(255, 200,  40);  // gold/yellow for speed boost
 
     public static final Color[] PLAYER_ACCENTS = {
-        new Color(60, 100, 220),
-        new Color(200, 50, 50),
-        new Color(50, 160, 50),
-        new Color(160, 140, 60)
+        new Color(80, 120, 255),   // P1 — bright blue  (matches top bar)
+        new Color(220,  60,  60),  // P2 — bright red
+        new Color(60,  200,  60),  // P3 — bright green
+        new Color(200, 170,  50)   // P4 — gold/olive
     };
 
     public static final Font FONT_TITLE = new Font("SansSerif", Font.BOLD, 18);
@@ -69,11 +70,11 @@ public final class Style {
 
     public static void applyStatusStyle(JLabel label, boolean frozen, boolean speedBoost) {
         if (frozen) {
-            label.setText("FROZEN"); label.setForeground(STATUS_FROZEN);
+            label.setText("FROZEN");     label.setForeground(STATUS_FROZEN);
         } else if (speedBoost) {
-            label.setText("SPEED BOOST"); label.setForeground(STATUS_OK);
+            label.setText("SPEED BOOST"); label.setForeground(STATUS_SPEED);
         } else {
-            label.setText("NORMAL"); label.setForeground(STATUS_OK);
+            label.setText("NORMAL");     label.setForeground(STATUS_OK);
         }
     }
 
