@@ -101,6 +101,7 @@ public class GameLogic {
             if (nx >= 0 && nx < GRID_COLS && ny >= 0 && ny < GRID_ROWS) {
                 player.x = nx;
                 player.y = ny;
+                checkItemCollection(player);
             }
         }
     }
