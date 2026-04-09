@@ -104,6 +104,8 @@ public class GamePanel extends JPanel implements Runnable {
             if (gameLogic != null) broadcastZoneUpdate();
             // Broadcast player state once per second
             if (tick % TICK_RATE == 0 && gameLogic != null) broadcastPlayerUpdate();
+            // Broadcast death messages when players die
+            if (gameLogic != null) broadcastDeathMessages();
 
             long sleep = tickMs - (System.currentTimeMillis() - start);
             if (sleep > 0) {
@@ -496,6 +498,18 @@ public class GamePanel extends JPanel implements Runnable {
             sb.append(",").append(zone.captureProgress);
         }
         for (ClientHandler client : clients) client.sendTextMessage(sb.toString());
+    }
+
+    private void broadcastDeathMessages() {
+        java.util.Map<Integer, Player> players = gameLogic.getPlayers();
+        for (Player p : players.values()) {
+            // Broadcast respawn countdown for players currently respawning
+            if (p.respawnTicksLeft > 0) {
+                int secondsLeft = (p.respawnTicksLeft + 19) / 20;  // Round up to whole seconds
+                String respawnMsg = "RESPAWN_COUNTDOWN," + p.id + "," + secondsLeft;
+                for (ClientHandler client : clients) client.sendTextMessage(respawnMsg);
+            }
+        }
     }
 
     private void broadcastFrame(BufferedImage frame) {

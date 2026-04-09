@@ -30,9 +30,10 @@ public class Player implements Serializable {
     public boolean speedBoost;
     public int speedBoostTicksLeft;
 
-    // Connection state
+    // Connection state and respawn
     public boolean connected;
     public boolean killed;   
+    public int respawnTicksLeft;  // Countdown until respawn (0 = not respawning)
 
     // Last accepted UDP sequence number — rejects duplicates and stale out-of-order packets
     private int lastAcceptedSeq;
@@ -46,6 +47,7 @@ public class Player implements Serializable {
         this.hp = 100;  // Start at full health
         this.connected = true;
         this.killed = false;
+        this.respawnTicksLeft = 0;  // Not respawning initially
         this.lastAcceptedSeq = 0;
     }
 
@@ -62,6 +64,8 @@ public class Player implements Serializable {
     /** Called once per tick to count down active status effects. */
     public void tickEffects() {
         if (frozen) {
+            // Lose 1 HP per tick while frozen
+            hp = Math.max(0, hp - 1);
             if (--frozenTicksLeft <= 0) {
                 frozen = false;
                 frozenTicksLeft = 0;

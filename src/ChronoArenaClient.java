@@ -35,6 +35,7 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
     // ── Movement flags ────────────────────────────────────────────────────────
     private boolean holdUp, holdDown, holdLeft, holdRight;
     private int lastDx = 0, lastDy = 0;
+    private boolean isCurrentlyRespawning = false;  // Track respawn state
 
     // ── UI ────────────────────────────────────────────────────────────────────
     private HUDPanel       hud;
@@ -88,11 +89,22 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
         displayPanel.setPlayerCallback((id, score, hp, frozen, hasWeapon, hasShield, speedBoost) -> {
             String itemType = hasWeapon ? "GUN" : hasShield ? "SHIELD" : "NONE";
             if (id == localPlayerId) {
+                // Clear respawn message when player respawns and appears in PLAYER_UPDATE
+                if (isCurrentlyRespawning) {
+                    isCurrentlyRespawning = false;
+                    SwingUtilities.invokeLater(() -> hud.clearRespawnMessage());
+                }
                 // pass score as 2nd argument — added in SidebarPanel update
                 sidebar.updateSelfCard("Player " + id, score, hp, frozen, hasWeapon, hasShield, speedBoost, itemType);
             } else {
                 // SidebarPanel now handles the id→slot mapping internally
                 sidebar.updateOtherPlayer(id, "Player " + id, score, frozen, speedBoost, itemType);
+            }
+        });
+        displayPanel.setRespawnCountdownCallback((playerId, secondsLeft) -> {
+            if (playerId == localPlayerId) {
+                isCurrentlyRespawning = true;
+                SwingUtilities.invokeLater(() -> hud.showRespawnCountdown(secondsLeft));
             }
         });
         displayPanel.setZoneCallback((zoneIndex, state, ownerId, progress) -> {
