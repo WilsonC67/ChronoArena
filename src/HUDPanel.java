@@ -5,8 +5,11 @@ public class HUDPanel extends JPanel {
 
     private final JLabel timerLabel;
     private final JLabel[] scoreBoxLabels = new JLabel[4];
+    private final JLabel respawnCountdownLabel;
     private GameEventListener gameEventListener;
     private boolean gameEndFired = false;
+    private int currentRespawnCountdown = 0;
+    private long lastRespawnUpdateTime = 0;
 
     public void setGameEventListener(GameEventListener listener) {
         this.gameEventListener = listener;
@@ -22,7 +25,7 @@ public class HUDPanel extends JPanel {
         add(title);
 
         timerLabel = Style.makeLabel("TIME LEFT: --:--", Style.FONT_LARGE, Style.TEXT_WHITE);
-        timerLabel.setBounds(330, 10, 220, 28);
+        timerLabel.setBounds(270, 10, 160, 28);
         add(timerLabel);
 
         JLabel scoreLbl = Style.makeLabel("SCORE", Style.FONT_XS, Color.LIGHT_GRAY);
@@ -38,6 +41,12 @@ public class HUDPanel extends JPanel {
             scoreBoxLabels[i].setBounds(690 + i * 52, 10, 46, 28);
             add(scoreBoxLabels[i]);
         }
+
+        respawnCountdownLabel = new JLabel("", SwingConstants.CENTER);
+        respawnCountdownLabel.setFont(Style.FONT_LARGE);
+        respawnCountdownLabel.setForeground(new Color(100, 180, 255));
+        respawnCountdownLabel.setBounds(440, 0, 180, 48);
+        add(respawnCountdownLabel);
     }
 
     // called by chronoArenaClient when server sends updated state
@@ -53,4 +62,24 @@ public class HUDPanel extends JPanel {
             gameEventListener.onGameEnd();
         }
     }
+
+    public void showRespawnCountdown(int secondsLeft) {
+        if (secondsLeft > 0) {
+            currentRespawnCountdown = secondsLeft;
+            lastRespawnUpdateTime = System.currentTimeMillis();
+            respawnCountdownLabel.setText("RESPAWNING");
+        } else {
+            respawnCountdownLabel.setText("");
+            currentRespawnCountdown = 0;
+        }
+        repaint();
+    }
+
+    public void clearRespawnMessage() {
+        respawnCountdownLabel.setText("");
+        currentRespawnCountdown = 0;
+        repaint();
+    }
+
+
 }
