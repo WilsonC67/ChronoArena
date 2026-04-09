@@ -36,6 +36,8 @@ public class DisplayPanel extends JPanel {
     private ZoneUpdateCallback zoneCallback;
     // optional callback fired with player state updates
     private PlayerUpdateCallback playerCallback;
+    // optional callback fired when the server assigns the connected player ID
+    private java.util.function.IntConsumer assignedIdCallback;
 
     @FunctionalInterface
     public interface PlayerUpdateCallback {
@@ -75,6 +77,11 @@ public class DisplayPanel extends JPanel {
         this.playerCallback = cb;
     }
 
+    /** Optional — fired when the server assigns the connected player ID. */
+    public void setAssignedIdCallback(java.util.function.IntConsumer cb) {
+        this.assignedIdCallback = cb;
+    }
+
     // ── Connection loop ───────────────────────────────────────────────────────
 
     private void connectToServer() {
@@ -111,6 +118,7 @@ public class DisplayPanel extends JPanel {
                     if (response.startsWith("WELCOME")) {
                         int assignedId = Integer.parseInt(response.split(" ")[1]);
                         setStatus("Connected — Player " + assignedId);
+                        if (assignedIdCallback != null) assignedIdCallback.accept(assignedId);
                         System.out.println("[DisplayPanel] Server says: " + response);
                     }
 

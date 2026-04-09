@@ -268,13 +268,39 @@ public class GameLogic {
     }
 
     public synchronized void addPlayer(int playerId, String name) {
-        if (players.containsKey(playerId)) {
-            players.get(playerId).connected = true;
+        Player existing = players.get(playerId);
+        if (existing != null) {
+            if (existing.connected) return;
+            int[] pos = SPAWN_POINTS[spawnIndex++ % SPAWN_POINTS.length];
+            players.put(playerId, new Player(playerId, name, pos[0], pos[1]));
+            System.out.printf("[GameLogic] Player %d (%s) rejoined at (%d,%d)%n", playerId, name, pos[0], pos[1]);
             return;
         }
         int[] pos = SPAWN_POINTS[spawnIndex++ % SPAWN_POINTS.length];
         players.put(playerId, new Player(playerId, name, pos[0], pos[1]));
         System.out.printf("[GameLogic] Player %d (%s) joined at (%d,%d)%n", playerId, name, pos[0], pos[1]);
+    }
+
+    public synchronized int getConnectedPlayerCount() {
+        int count = 0;
+        for (Player player : players.values()) {
+            if (player.connected) count++;
+        }
+        return count;
+    }
+
+    public synchronized int getAvailablePlayerId() {
+        for (int playerId = 1; playerId <= 4; playerId++) {
+            Player player = players.get(playerId);
+            if (player == null || !player.connected) return playerId;
+        }
+        return -1;
+    }
+
+    public synchronized boolean isPlayerIdAvailable(int playerId) {
+        if (playerId < 1 || playerId > 4) return false;
+        Player player = players.get(playerId);
+        return player == null || !player.connected;
     }
 
     public synchronized void removePlayer(int playerId) {

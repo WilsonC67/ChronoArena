@@ -48,14 +48,25 @@ public class ClientHandler implements Runnable {
             if (line != null && line.startsWith("JOIN ")) {
                 int requestedId = Integer.parseInt(line.substring(5).trim());
 
-                // Enforce 4-player cap
-                if (gameLogic.getPlayers().size() >= MAX_PLAYERS) {
+                    // Enforce 4-player cap
+                if (gameLogic.getConnectedPlayerCount() >= MAX_PLAYERS) {
                     sendTextLine("REJECT Server full (" + MAX_PLAYERS + " players max)");
                     disconnect();
                     return;
                 }
 
-                assignedPlayerId = requestedId;
+                int assignedId = requestedId >= 1 && requestedId <= MAX_PLAYERS
+                        && gameLogic.isPlayerIdAvailable(requestedId)
+                        ? requestedId
+                        : gameLogic.getAvailablePlayerId();
+
+                if (assignedId == -1) {
+                    sendTextLine("REJECT Server full (" + MAX_PLAYERS + " players max)");
+                    disconnect();
+                    return;
+                }
+
+                assignedPlayerId = assignedId;
                 gameLogic.addPlayer(assignedPlayerId, "Player " + assignedPlayerId);
                 sendTextLine("WELCOME " + assignedPlayerId);
                 System.out.printf("[ClientHandler] Player %d joined from %s%n",

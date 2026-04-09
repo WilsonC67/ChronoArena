@@ -28,7 +28,8 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
 
     // ── Network ───────────────────────────────────────────────────────────────
     private final String       serverIp;
-    private final int          localPlayerId;
+    private final int          requestedPlayerId;
+    private volatile int       assignedPlayerId;
     private       DatagramSocket udpSocket;
     private       long           udpSeq = 0;
 
@@ -47,8 +48,22 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
     // ── Constructor ───────────────────────────────────────────────────────────
 
     public ChronoArenaClient(String serverIp, int playerId) {
-        this.serverIp      = serverIp;
-        this.localPlayerId = playerId;
+        this.serverIp         = serverIp;
+        this.requestedPlayerId = playerId;
+        this.assignedPlayerId = playerId;
+    }
+
+    private int getEffectivePlayerId() {
+        return assignedPlayerId > 0 ? assignedPlayerId : requestedPlayerId;
+    }
+
+    private void applyAssignedPlayerId(int assignedId) {
+        if (assignedId <= 0) return;
+        this.assignedPlayerId = assignedId;
+        SwingUtilities.invokeLater(() -> {
+            setTitle("ChronoArena — Player " + assignedId + "  [server: " + serverIp + "]");
+            if (sidebar != null) sidebar.setLocalPlayerId(assignedId);
+        });
     }
 
     // ── Launch ────────────────────────────────────────────────────────────────
@@ -63,7 +78,7 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
     }
 
     private void buildUI() {
-        setTitle("ChronoArena — Player " + localPlayerId + "  [server: " + serverIp + "]");
+        setTitle("ChronoArena — Player " + (getEffectivePlayerId() > 0 ? getEffectivePlayerId() : "?") + "  [server: " + serverIp + "]");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setResizable(false);
         setBackground(Color.BLACK);
@@ -71,15 +86,16 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
         hud = new HUDPanel();
         hud.setGameEventListener(this);
 
-        sidebar = new SidebarPanel(localPlayerId,
+        sidebar = new SidebarPanel(getEffectivePlayerId(),
                 () -> holdUp, () -> holdDown, () -> holdLeft, () -> holdRight,
                 () -> System.exit(0));
 
         actionbar = new ActionbarPanel(action ->
-                sendUDP(localPlayerId + "," + UDP_PORT + ",ACTION,0.0,0.0," + action + "," + udpSeq++));
+                sendUDP(getEffectivePlayerId() + "," + UDP_PORT + ",ACTION,0.0,0.0," + action + "," + udpSeq++));
 
         // DisplayPanel receives the server IP directly — no config.properties needed on client
-        DisplayPanel displayPanel = new DisplayPanel(serverIp, localPlayerId);
+        DisplayPanel displayPanel = new DisplayPanel(serverIp, requestedPlayerId);
+        displayPanel.setAssignedIdCallback(this::applyAssignedPlayerId);
         displayPanel.setLobbyCallback(this::updateLobby);
         displayPanel.setScoreCallback((secondsLeft, scores) -> {
             lastScores = scores;
@@ -87,7 +103,7 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
         });
         displayPanel.setPlayerCallback((id, score, hp, frozen, hasWeapon, hasShield, speedBoost) -> {
             String itemType = hasWeapon ? "GUN" : hasShield ? "SHIELD" : "NONE";
-            if (id == localPlayerId) {
+            if (assignedPlayerId > 0 && id == assignedPlayerId) {
                 // pass score as 2nd argument — added in SidebarPanel update
                 sidebar.updateSelfCard("Player " + id, score, hp, frozen, hasWeapon, hasShield, speedBoost, itemType);
             } else {
@@ -149,7 +165,7 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
             public boolean dispatchKeyEvent(KeyEvent e) {
                 if (e.getID() == KeyEvent.KEY_PRESSED && e.getKeyCode() == KeyEvent.VK_SPACE) {
                     System.out.println("[Client] Shooting in direction " + lastDx + "," + lastDy);
-                    sendUDP(localPlayerId + "," + UDP_PORT + ",SHOOT," + lastDx + ".0," + lastDy + ".0,," + udpSeq++);
+                    sendUDP(getEffectivePlayerId() + "," + UDP_PORT + ",SHOOT," + lastDx + ".0," + lastDy + ".0,," + udpSeq++);
                     // Update UI to remove gun icon after shooting
                     actionbar.updateItemHeld("NONE");
                     return true; // consume the event
@@ -187,7 +203,7 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
         am.put("LEFT_R",  release(() -> { holdLeft  = false; repaintJoystick(); }));
         am.put("RIGHT_R", release(() -> { holdRight = false; repaintJoystick(); }));
 
-        am.put("SHOOT_P", press(() -> sendUDP(localPlayerId + "," + UDP_PORT + ",SHOOT," + lastDx + ".0," + lastDy + ".0,," + udpSeq++)));
+        am.put("SHOOT_P", press(() -> sendUDP(getEffectivePlayerId() + "," + UDP_PORT + ",SHOOT," + lastDx + ".0," + lastDy + ".0,," + udpSeq++)));
     }
 
     private void bindKey(InputMap im, int keyCode, String dir) {
@@ -209,7 +225,7 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
         else if (dy == -1) action = "MOVE_UP";
         else               action = "MOVE_DOWN";
         // Format matches PlayerListener: playerId,tcpPort,action,x,y,extra,seq
-        sendUDP(localPlayerId + "," + UDP_PORT + "," + action + ",0.0,0.0,," + udpSeq++);
+        sendUDP(getEffectivePlayerId() + "," + UDP_PORT + "," + action + ",0.0,0.0,," + udpSeq++);
         lastDx = dx;
         lastDy = dy;
     }
@@ -231,7 +247,7 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
     public void onGameStart() {
         System.out.println("=== GAME START ===");
         // Tell the server the lobby countdown finished — start the round timer
-        sendUDP(localPlayerId + "," + UDP_PORT + ",GAME_START,0.0,0.0,," + udpSeq++);
+        sendUDP(getEffectivePlayerId() + "," + UDP_PORT + ",GAME_START,0.0,0.0,," + udpSeq++);
     }
 
     @Override public void onPlayerFrozen() { System.out.println("=== PLAYER FROZEN ==="); }
@@ -292,7 +308,7 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
         }
 
         // ── Resolve player ID ─────────────────────────────────────────────────
-        // Priority: args[1]  →  -Dplayer.id  →  prompt
+        // Priority: args[1]  →  -Dplayer.id  →  auto-assign lowest available
         int pid = 0;
 
         if (args.length >= 2) {
@@ -304,20 +320,13 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
                 try { pid = Integer.parseInt(sysPid); } catch (NumberFormatException ignored) {}
             }
         }
-        if (pid < 1 || pid > 4) {
-            String input = JOptionPane.showInputDialog(null,
-                    "Enter your Player ID (1–4):", "ChronoArena — Player ID",
-                    JOptionPane.QUESTION_MESSAGE);
-            if (input == null) System.exit(0);
-            try { pid = Integer.parseInt(input.trim()); } catch (NumberFormatException ignored) {}
-            pid = Math.max(1, Math.min(4, pid));
-        }
 
         final String ip    = serverIp;
         final int    finalPid = pid;
 
-        System.out.printf("[Client] Connecting to %s  (TCP:%d  UDP:%d)  as Player %d%n",
-                ip, PropertyFileReader.getTCPPort(), PropertyFileReader.getPlayerMonitorPort(), finalPid);
+        System.out.printf("[Client] Connecting to %s  (TCP:%d  UDP:%d)  as Player %s%n",
+                ip, PropertyFileReader.getTCPPort(), PropertyFileReader.getPlayerMonitorPort(),
+                finalPid > 0 ? String.valueOf(finalPid) : "AUTO");
 
         SwingUtilities.invokeLater(() -> new ChronoArenaClient(ip, finalPid).launch());
     }
