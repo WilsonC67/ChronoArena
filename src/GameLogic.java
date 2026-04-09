@@ -22,6 +22,7 @@ public class GameLogic {
 
     private static final int ITEM_SPAWN_INTERVAL = 100; // every 5 sec at 20 ticks/sec
     private static final int MAX_ITEMS           = 6;
+    private static final int RESPAWN_DURATION_TICKS = 60;  // 3 seconds at 20 ticks/sec
     private static final int[][] SPAWN_POINTS    = {{1,1},{13,1},{1,10},{13,10}};
 
     private final Map<Integer, Player> players = new ConcurrentHashMap<>();
@@ -61,6 +62,38 @@ public class GameLogic {
 
         for (Player p : players.values()) {
             if (p.connected && !p.killed) p.tickEffects();
+        }
+
+        // Handle respawn countdown
+        for (Player p : players.values()) {
+            if (p.respawnTicksLeft > 0) {
+                p.respawnTicksLeft--;
+                if (p.respawnTicksLeft <= 0) {
+                    // Respawn the player
+                    int[] pos = SPAWN_POINTS[spawnIndex++ % SPAWN_POINTS.length];
+                    p.x = pos[0];
+                    p.y = pos[1];
+                    p.hp = 100;
+                    p.killed = false;
+                    p.frozen = false;
+                    p.frozenTicksLeft = 0;
+                    p.hasWeapon = false;
+                    p.hasShield = false;
+                    p.speedBoost = false;
+                    p.speedBoostTicksLeft = 0;
+                    System.out.printf("[GameLogic] Player %d respawned at (%d,%d)%n", p.id, p.x, p.y);
+                }
+            }
+        }
+
+        // Check for deaths (health <= 0 and not currently respawning)
+        for (Player p : players.values()) {
+            if (p.connected && !p.killed && p.respawnTicksLeft == 0 && p.hp <= 0) {
+                p.killed = true;
+                p.respawnTicksLeft = RESPAWN_DURATION_TICKS;
+                p.score = Math.max(0, p.score - 10);
+                System.out.printf("[GameLogic] Player %d died and lost 10 points (score now %d)%n", p.id, p.score);
+            }
         }
 
         updateZones();
@@ -242,9 +275,9 @@ public class GameLogic {
             int y = 1 + random.nextInt(GRID_ROWS - 2);
             if (isTileOccupiedByItem(x, y)) continue;
 
-            int roll = random.nextInt(5);
-            Item.Type type = roll < 2 ? Item.Type.ENERGY : roll == 2 ? Item.Type.GUN
-                           : roll == 3 ? Item.Type.SHIELD : Item.Type.SPEED_BOOST;
+            int roll = random.nextInt(6);
+            Item.Type type = roll < 2 ? Item.Type.ENERGY : roll < 4 ? Item.Type.GUN
+                           : roll == 4 ? Item.Type.SHIELD : Item.Type.SPEED_BOOST;
             int value = type == Item.Type.ENERGY
                     ? Item.ENERGY_MIN + random.nextInt(Item.ENERGY_MAX - Item.ENERGY_MIN + 1) : 0;
 
