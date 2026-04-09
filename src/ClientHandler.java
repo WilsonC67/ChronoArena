@@ -17,16 +17,19 @@ public class ClientHandler implements Runnable {
     private final Socket    socket;
     private final GamePanel gamePanel;
     private final GameLogic gameLogic;
+    private final java.util.List<ClientHandler> allClients; // shared across all handlers
 
     private DataOutputStream out;
     private volatile boolean running = true;
     private int assignedPlayerId = -1;
 
-    public ClientHandler(Socket socket, GamePanel gamePanel, GameLogic gameLogic) throws IOException {
-        this.socket    = socket;
-        this.gamePanel = gamePanel;
-        this.gameLogic = gameLogic;
-        this.out       = new DataOutputStream(socket.getOutputStream());
+    public ClientHandler(Socket socket, GamePanel gamePanel, GameLogic gameLogic,
+                         java.util.List<ClientHandler> allClients) throws IOException {
+        this.socket     = socket;
+        this.gamePanel  = gamePanel;
+        this.gameLogic  = gameLogic;
+        this.allClients = allClients;
+        this.out        = new DataOutputStream(socket.getOutputStream());
     }
 
     // -----------------------------------------------------------------------
@@ -57,6 +60,10 @@ public class ClientHandler implements Runnable {
                 sendTextLine("WELCOME " + assignedPlayerId);
                 System.out.printf("[ClientHandler] Player %d joined from %s%n",
                         assignedPlayerId, socket.getRemoteSocketAddress());
+
+                // Register in shared list then tell everyone who is now connected
+                allClients.add(this);
+                broadcastLobbyUpdate();
             } else {
                 // Display-only connection (no JOIN line sent)
                 sendTextLine("WELCOME 0");
@@ -98,13 +105,42 @@ public class ClientHandler implements Runnable {
         out.flush();
     }
 
+    /** Sends a LOBBY_UPDATE line to this specific client. */
+    private void sendLobbyUpdate(boolean[] connected) {
+        if (!running) return;
+        try {
+            StringBuilder sb = new StringBuilder("LOBBY_UPDATE");
+            for (boolean c : connected) sb.append(c ? ",1" : ",0");
+            sb.append("\n");
+            out.write(0x00); // sentinel so DisplayPanel knows this is a text line
+            out.write(sb.toString().getBytes());
+            out.flush();
+        } catch (IOException e) {
+            disconnect();
+        }
+    }
+
+    /** Builds the current connected-player array and pushes it to all clients. */
+    private void broadcastLobbyUpdate() {
+        boolean[] connected = new boolean[4];
+        synchronized (allClients) {
+            for (ClientHandler h : allClients) {
+                int pid = h.getAssignedPlayerId();
+                if (pid >= 1 && pid <= 4) connected[pid - 1] = true;
+            }
+            for (ClientHandler h : allClients) h.sendLobbyUpdate(connected);
+        }
+    }
+
     public void disconnect() {
         running = false;
         gamePanel.removeClient(this);
+        allClients.remove(this);
         if (assignedPlayerId > 0) {
             gameLogic.removePlayer(assignedPlayerId);
             System.out.printf("[ClientHandler] Player %d removed.%n", assignedPlayerId);
         }
+        broadcastLobbyUpdate();
         try { socket.close(); } catch (IOException ignored) {}
     }
 
