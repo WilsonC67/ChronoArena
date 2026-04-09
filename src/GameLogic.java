@@ -33,6 +33,7 @@ public class GameLogic {
     private int     itemIdCounter      = 0;
     private int     spawnIndex         = 0;
     private boolean gameActive         = false;
+    private boolean roundStarted       = false; // true only after all players ready
     private long    roundEndTimeMs;
     private int     roundDurationSeconds;
     private ServerUDPQueue packetQueue;
@@ -70,7 +71,7 @@ public class GameLogic {
         // Update beams
         beams.removeIf(beam -> --beam.ticksLeft <= 0);
 
-        if (System.currentTimeMillis() >= roundEndTimeMs) {
+        if (System.currentTimeMillis() >= roundEndTimeMs && roundStarted) {
             gameActive = false;
             System.out.println("[GameLogic] Round over! Winner: " + getWinner());
         }
@@ -84,6 +85,7 @@ public class GameLogic {
             case "MOVE_RIGHT":     handleMove(player,  1,  0); break;
             case "SHOOT":          handleShoot(player, pa.x, pa.y);        break;
             case "PICKUP_POWERUP": checkItemCollection(player);break;
+            case "GAME_START":     startRound(); break;
             default: break;
         }
         checkItemCollection(player);
@@ -307,9 +309,22 @@ public class GameLogic {
     }
 
     public void startGame() {
-        gameActive     = true;
+        gameActive = true;
+        // roundEndTimeMs is set in startRound() when the client GAME_START packet arrives
+        System.out.println("[GameLogic] Game active, waiting for round start signal.");
+    }
+
+    /** Called when all players are ready and the lobby countdown finishes. */
+    public synchronized void startRound() {
+        if (roundStarted) return; // only trigger once
+        roundStarted   = true;
         roundEndTimeMs = System.currentTimeMillis() + roundDurationSeconds * 1000L;
-        System.out.println("[GameLogic] Game started.");
+        System.out.println("[GameLogic] Round timer started!");
+    }
+
+    public long getTimeRemainingMs() {
+        if (!roundStarted) return roundDurationSeconds * 1000L;
+        return Math.max(0, roundEndTimeMs - System.currentTimeMillis());
     }
 
     public String getWinner() {
@@ -325,5 +340,4 @@ public class GameLogic {
     public List<Item>           getItems()           { return items;   }
     public List<Beam>           getBeams()           { return beams;   }
     public boolean              isActive()           { return gameActive; }
-    public long                 getTimeRemainingMs() { return Math.max(0, roundEndTimeMs - System.currentTimeMillis()); }
 }

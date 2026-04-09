@@ -1,4 +1,3 @@
-
 /**
  * PlayerAction — all possible payload types a player client can send.
  *
@@ -24,6 +23,9 @@ public enum PlayerActionEnum {
     // --- world interaction ---
     PICKUP_POWERUP,
     INTERACT,
+
+    // --- lobby ---
+    GAME_START,
 
     // --- default ---
     IDLE;

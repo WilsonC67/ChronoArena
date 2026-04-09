@@ -30,6 +30,15 @@ public class DisplayPanel extends JPanel {
 
     // optional callback fired when the server sends a LOBBY_UPDATE line
     private java.util.function.Consumer<boolean[]> lobbyCallback;
+    // optional callback fired when the server sends a SCORE_UPDATE line
+    private java.util.function.BiConsumer<Integer, int[]> scoreCallback;
+    // optional callback fired with zone updates: (zoneIndex, stateName, ownerId, progress)
+    private ZoneUpdateCallback zoneCallback;
+
+    @FunctionalInterface
+    public interface ZoneUpdateCallback {
+        void onZoneUpdate(int zoneIndex, String state, int ownerId, int progress);
+    }
 
     public DisplayPanel(String serverIp, int playerId) {
         this.serverIp = serverIp;
@@ -42,6 +51,16 @@ public class DisplayPanel extends JPanel {
     /** Optional — set before the connection is established. */
     public void setLobbyCallback(java.util.function.Consumer<boolean[]> cb) {
         this.lobbyCallback = cb;
+    }
+
+    /** Optional — fired with (secondsLeft, int[4] scores) each second. */
+    public void setScoreCallback(java.util.function.BiConsumer<Integer, int[]> cb) {
+        this.scoreCallback = cb;
+    }
+
+    /** Optional — fired each second with zone state updates. */
+    public void setZoneCallback(ZoneUpdateCallback cb) {
+        this.zoneCallback = cb;
     }
 
     // ── Connection loop ───────────────────────────────────────────────────────
@@ -100,31 +119,15 @@ public class DisplayPanel extends JPanel {
 
     private void streamFrames(DataInputStream in) throws IOException {
         while (!Thread.currentThread().isInterrupted()) {
-            // Peek at the first 4 bytes as an int — binary frames send their
-            // length here. A LOBBY_UPDATE line starts with 'L','O','B','B'
-            // which as a big-endian int is always a very large positive number
-            // (> 1_000_000), so we use a sentinel: if the int is negative or
-            // suspiciously large, re-read as a text line instead.
-            //
-            // Simpler approach: server prefixes text lines with 0x00 so we
-            // can branch on the first byte without ambiguity.
-            //
-            // We use a DataInputStream mark/reset trick: read one byte first.
-            int firstByte = in.read();
-            if (firstByte == -1) return; // server closed connection
-
-            if (firstByte == 0x00) {
-                // Text line follows — read until newline
-                StringBuilder sb = new StringBuilder();
-                int ch;
-                while ((ch = in.read()) != -1 && ch != '\n') sb.append((char) ch);
-                handleTextLine(sb.toString().trim());
+            int length = in.readInt();
+            if (length == -1) {
+                // Text message — read the actual payload length then the bytes
+                int textLength = in.readInt();
+                byte[] textData = new byte[textLength];
+                in.readFully(textData);
+                handleTextLine(new String(textData).trim());
             } else {
-                // Binary frame — reconstruct the 4-byte length from firstByte + 3 more
-                int b1 = in.read(), b2 = in.read(), b3 = in.read();
-                if (b1 == -1 || b2 == -1 || b3 == -1) return;
-                int length = ((firstByte & 0xFF) << 24) | ((b1 & 0xFF) << 16)
-                           | ((b2 & 0xFF) << 8)  |  (b3 & 0xFF);
+                // Binary JPEG frame
                 byte[] data = new byte[length];
                 in.readFully(data);
                 BufferedImage frame = ImageIO.read(new ByteArrayInputStream(data));
@@ -144,8 +147,36 @@ public class DisplayPanel extends JPanel {
                 for (int i = 0; i < 4; i++) connected[i] = parts[i + 1].equals("1");
                 lobbyCallback.accept(connected);
             }
+        } else if (line.startsWith("ZONE_UPDATE,") && zoneCallback != null) {
+            String[] parts = line.split(",");
+            if (parts.length >= 1 + 9) {
+                for (int z = 0; z < 3; z++) {
+                    int base = 1 + z * 3;
+                    String state    = parts[base];
+                    int    ownerId  = Integer.parseInt(parts[base + 1]);
+                    int    progress = Integer.parseInt(parts[base + 2]);
+                    zoneCallback.onZoneUpdate(z, state, ownerId, progress);
+                }
+            }
+        } else if (line.startsWith("SCORE_UPDATE,")) {
+            String[] parts = line.split(",");
+            if (parts.length >= 6) {
+                int secondsLeft = Integer.parseInt(parts[1]);
+                int[] scores = new int[4];
+                for (int i = 0; i < 4; i++) scores[i] = Integer.parseInt(parts[i + 2]);
+                if (scoreCallback != null) scoreCallback.accept(secondsLeft, scores);
+                // Zone data starts at index 6: state,ownerId,progress per zone
+                if (zoneCallback != null && parts.length >= 6 + 9) {
+                    for (int z = 0; z < 3; z++) {
+                        int base = 6 + z * 3;
+                        String state    = parts[base];
+                        int    ownerId  = Integer.parseInt(parts[base + 1]);
+                        int    progress = Integer.parseInt(parts[base + 2]);
+                        zoneCallback.onZoneUpdate(z, state, ownerId, progress);
+                    }
+                }
+            }
         }
-        // other text messages can be handled here in future
     }
 
     private void setStatus(String msg) {

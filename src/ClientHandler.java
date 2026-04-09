@@ -61,17 +61,21 @@ public class ClientHandler implements Runnable {
                 System.out.printf("[ClientHandler] Player %d joined from %s%n",
                         assignedPlayerId, socket.getRemoteSocketAddress());
 
-                // Register in shared list then tell everyone who is now connected
-                allClients.add(this);
-                broadcastLobbyUpdate();
             } else {
                 // Display-only connection (no JOIN line sent)
                 sendTextLine("WELCOME 0");
                 System.out.println("[ClientHandler] Display-only client connected.");
             }
 
-            // Now register for frame broadcast — this is all we do from here on
+            // Register for frame broadcast first
             gamePanel.addClient(this);
+
+            // Then add to lobby list and broadcast — client is now in streamFrames()
+            if (assignedPlayerId > 0) {
+                allClients.add(this);
+                try { Thread.sleep(200); } catch (InterruptedException ignored) {}
+                broadcastLobbyUpdate();
+            }
 
         } catch (IOException | NumberFormatException e) {
             System.out.println("[ClientHandler] Handshake error: " + e.getMessage());
@@ -87,9 +91,11 @@ public class ClientHandler implements Runnable {
     public void sendFrame(byte[] data) {
         if (!running) return;
         try {
-            out.writeInt(data.length);
-            out.write(data);
-            out.flush();
+            synchronized (out) {
+                out.writeInt(data.length);
+                out.write(data);
+                out.flush();
+            }
         } catch (IOException e) {
             System.out.println("[ClientHandler] Client disconnected during frame send.");
             disconnect();
@@ -105,19 +111,27 @@ public class ClientHandler implements Runnable {
         out.flush();
     }
 
-    /** Sends a LOBBY_UPDATE line to this specific client. */
-    private void sendLobbyUpdate(boolean[] connected) {
+    /** Sends any text message to this client using the -1 frame flag. */
+    public void sendTextMessage(String text) {
         if (!running) return;
         try {
-            StringBuilder sb = new StringBuilder("LOBBY_UPDATE");
-            for (boolean c : connected) sb.append(c ? ",1" : ",0");
-            sb.append("\n");
-            out.write(0x00); // sentinel so DisplayPanel knows this is a text line
-            out.write(sb.toString().getBytes());
-            out.flush();
+            byte[] payload = text.getBytes();
+            synchronized (out) {
+                out.writeInt(-1);
+                out.writeInt(payload.length);
+                out.write(payload);
+                out.flush();
+            }
         } catch (IOException e) {
             disconnect();
         }
+    }
+
+    /** Sends a LOBBY_UPDATE line to this specific client. */
+    private void sendLobbyUpdate(boolean[] connected) {
+        StringBuilder sb = new StringBuilder("LOBBY_UPDATE");
+        for (boolean c : connected) sb.append(c ? ",1" : ",0");
+        sendTextMessage(sb.toString());
     }
 
     /** Builds the current connected-player array and pushes it to all clients. */

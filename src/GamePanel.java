@@ -98,6 +98,11 @@ public class GamePanel extends JPanel implements Runnable {
             BufferedImage frame = renderToImage();
             broadcastFrame(frame);
 
+            // Broadcast score + timer once per second
+            if (tick % TICK_RATE == 0 && gameLogic != null) broadcastScoreUpdate();
+            // Broadcast zone progress every tick for smooth animation
+            if (gameLogic != null) broadcastZoneUpdate();
+
             long sleep = tickMs - (System.currentTimeMillis() - start);
             if (sleep > 0) {
                 try { Thread.sleep(sleep); } catch (InterruptedException e) { break; }
@@ -119,7 +124,6 @@ public class GamePanel extends JPanel implements Runnable {
             drawItems(g);
             drawPlayers(g);
             drawBeams(g);
-            drawHudOverlay(g);
         } else {
             drawWaitingScreen(g);
         }
@@ -399,30 +403,7 @@ public class GamePanel extends JPanel implements Runnable {
         }
         g.setStroke(new BasicStroke(1f));
     }
-
-    // ── HUD overlay in top-left corner of the arena frame ────────────────────
-
-    private void drawHudOverlay(Graphics2D g) {
-        if (gameLogic == null) return;
-        int secondsLeft = (int)(gameLogic.getTimeRemainingMs() / 1000);
-        int connected   = (int) gameLogic.getPlayers().values().stream()
-                .filter(p -> p.connected && !p.killed).count();
-
-        String timeStr = String.format("%02d:%02d", secondsLeft / 60, secondsLeft % 60);
-        String connStr = connected + "/4 players";
-
-        g.setColor(new Color(0, 0, 0, 120));
-        g.fillRoundRect(6, 6, 130, 40, 8, 8);
-
-        g.setFont(new Font("SansSerif", Font.BOLD, 15));
-        g.setColor(secondsLeft < 30 ? new Color(220, 60, 60) : Color.WHITE);
-        g.drawString(timeStr, 12, 24);
-
-        g.setFont(new Font("SansSerif", Font.PLAIN, 10));
-        g.setColor(new Color(180, 185, 200));
-        g.drawString(connStr, 12, 40);
-    }
-
+    
     // ── Waiting screen (no players yet) ──────────────────────────────────────
 
     private void drawWaitingScreen(Graphics2D g) {
@@ -444,6 +425,34 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     // ── Broadcast ─────────────────────────────────────────────────────────────
+
+    private void broadcastScoreUpdate() {
+        int secondsLeft = (int)(gameLogic.getTimeRemainingMs() / 1000);
+        // Build "SCORE_UPDATE,secondsLeft,s1,s2,s3,s4,zState,zOwner,zProgress,..."
+        StringBuilder sb = new StringBuilder("SCORE_UPDATE,").append(secondsLeft);
+        java.util.Map<Integer, Player> players = gameLogic.getPlayers();
+        for (int i = 1; i <= 4; i++) {
+            Player p = players.get(i);
+            sb.append(",").append(p != null ? p.score : 0);
+        }
+        // Append zone data: state,ownerId,captureProgress for each zone
+        for (Zone zone : gameLogic.getZones()) {
+            sb.append(",").append(zone.state.name());
+            sb.append(",").append(zone.ownerId);
+            sb.append(",").append(zone.captureProgress);
+        }
+        for (ClientHandler client : clients) client.sendTextMessage(sb.toString());
+    }
+
+    private void broadcastZoneUpdate() {
+        StringBuilder sb = new StringBuilder("ZONE_UPDATE");
+        for (Zone zone : gameLogic.getZones()) {
+            sb.append(",").append(zone.state.name());
+            sb.append(",").append(zone.ownerId);
+            sb.append(",").append(zone.captureProgress);
+        }
+        for (ClientHandler client : clients) client.sendTextMessage(sb.toString());
+    }
 
     private void broadcastFrame(BufferedImage frame) {
         try {

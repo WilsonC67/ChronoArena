@@ -42,6 +42,7 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
     private ActionbarPanel actionbar;
     private GameOverPanel  gameOverPanel;
     private LobbyPanel     lobbyPanel;
+    private int[]          lastScores = new int[4]; // updated each SCORE_UPDATE
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -58,6 +59,7 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
             System.err.println("[Client] Could not open UDP socket: " + e.getMessage());
         }
         SwingUtilities.invokeLater(this::buildUI);
+        // Lobby updates arrive over TCP via DisplayPanel's setLobbyCallback — no UDP listener needed.
     }
 
     private void buildUI() {
@@ -78,7 +80,32 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
 
         // DisplayPanel receives the server IP directly — no config.properties needed on client
         DisplayPanel displayPanel = new DisplayPanel(serverIp, localPlayerId);
-        displayPanel.setLobbyCallback(connected -> updateLobby(connected));
+        displayPanel.setLobbyCallback(this::updateLobby);
+        displayPanel.setScoreCallback((secondsLeft, scores) -> {
+            lastScores = scores;
+            SwingUtilities.invokeLater(() -> hud.update(secondsLeft, scores));
+        });
+        displayPanel.setZoneCallback((zoneIndex, state, ownerId, progress) -> {
+            // Build display label
+            String label;
+            double pct;
+            if ("CONTESTED".equals(state)) {
+                label = "Contested";
+                pct   = 1.0;
+            } else if ("CONTROLLED".equals(state) && ownerId > 0) {
+                label = "P" + ownerId;
+                pct   = 1.0;
+            } else if ("CAPTURING".equals(state) && ownerId > 0) {
+                label = "P" + ownerId + "...";
+                pct   = Math.min(1.0, progress / (double) Zone.CAPTURE_TICKS);
+            } else {
+                label = "";
+                pct   = 0.0;
+            }
+            final String lbl = label;
+            final double p   = pct;
+            SwingUtilities.invokeLater(() -> actionbar.updateZone(zoneIndex, lbl, p));
+        });
         Dimension dp = displayPanel.getPreferredSize();
 
         // Layer displayPanel + game-over overlay + lobby overlay
@@ -190,15 +217,19 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
         SwingUtilities.invokeLater(() -> lobbyPanel.updatePlayers(connected));
     }
 
-    @Override public void onGameStart()    { System.out.println("=== GAME START ==="); }
+    @Override
+    public void onGameStart() {
+        System.out.println("=== GAME START ===");
+        // Tell the server the lobby countdown finished — start the round timer
+        sendUDP(localPlayerId + "," + UDP_PORT + ",GAME_START,0.0,0.0,," + udpSeq++);
+    }
+
     @Override public void onPlayerFrozen() { System.out.println("=== PLAYER FROZEN ==="); }
 
     @Override
     public void onGameEnd() {
         System.out.println("=== GAME OVER ===");
-        int[]    scores = {0, 0, 0, 0};
-        String[] names  = {"Player 1", "Player 2", "Player 3", "Player 4"};
-        SwingUtilities.invokeLater(() -> gameOverPanel.show(scores, names));
+        SwingUtilities.invokeLater(() -> gameOverPanel.show(lastScores, null));
     }
 
     // ── UDP sender ────────────────────────────────────────────────────────────

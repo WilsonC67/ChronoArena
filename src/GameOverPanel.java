@@ -26,20 +26,21 @@ public class GameOverPanel extends JPanel {
         subHeader.setBounds(0, 155, 900, 28);
         add(subHeader);
 
-        String[] playerNames = {"PLAYER 1", "PLAYER 2", "PLAYER 3", "PLAYER 4"};
         Color[] accents = Style.PLAYER_ACCENTS;
 
         for (int i = 0; i < 4; i++) {
-            JLabel nameLbl = new JLabel(playerNames[i], SwingConstants.RIGHT);
+            // Left side: coloured player name
+            JLabel nameLbl = new JLabel("PLAYER " + (i + 1) + ":", SwingConstants.RIGHT);
             nameLbl.setFont(new Font("SansSerif", Font.BOLD, 20));
             nameLbl.setForeground(accents[i]);
             nameLbl.setBounds(250, 200 + i * 48, 180, 32);
             add(nameLbl);
 
-            scoreLabels[i] = new JLabel("0", SwingConstants.LEFT);
+            // Right side: score value (updated in show())
+            scoreLabels[i] = new JLabel("0 pts", SwingConstants.LEFT);
             scoreLabels[i].setFont(new Font("SansSerif", Font.BOLD, 20));
             scoreLabels[i].setForeground(Style.TEXT_WHITE);
-            scoreLabels[i].setBounds(450, 200 + i * 48, 120, 32);
+            scoreLabels[i].setBounds(450, 200 + i * 48, 200, 32);
             add(scoreLabels[i]);
         }
 
@@ -66,25 +67,16 @@ public class GameOverPanel extends JPanel {
 
     // called by ChronoArenaClient.onGameEnd() with final scores.
     public void show(int[] scores, String[] playerNames) {
-        // update score rows
         for (int i = 0; i < 4 && i < scores.length; i++) {
-            scoreLabels[i].setText(String.valueOf(scores[i]));
-            if (i < playerNames.length && playerNames[i] != null) {
-                // find the name label by index — re-apply name in case it changed
-                Component c = getComponent(3 + i * 2);
-                if (c instanceof JLabel) ((JLabel) c).setText(playerNames[i].toUpperCase());
-            }
+            scoreLabels[i].setText(scores[i] + " pts");
         }
 
-        // find winner (highest score, lowest index wins tie)
         int winnerIdx = 0;
         for (int i = 1; i < scores.length; i++) {
             if (scores[i] > scores[winnerIdx]) winnerIdx = i;
         }
 
-        String winnerName = (playerNames != null && winnerIdx < playerNames.length && playerNames[winnerIdx] != null) ? playerNames[winnerIdx] : "PLAYER" + (winnerIdx + 1);
-
-        winnerLabel.setText("\uD83C\uDFC6" + winnerName.toUpperCase() + "WINS!");
+        winnerLabel.setText("\uD83C\uDFC6 PLAYER " + (winnerIdx + 1) + " WINS!");
 
         setVisible(true);
         repaint();
