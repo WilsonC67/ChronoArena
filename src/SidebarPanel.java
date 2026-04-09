@@ -17,6 +17,7 @@ public class SidebarPanel extends JPanel {
     private final JLabel[] otherStatusLabels = new JLabel[3];
     private final JLabel[] otherItemLabels  = new JLabel[3];
     private final JLabel[] otherConnLabels  = new JLabel[3];
+    private final JLabel[] otherTagLabels   = new JLabel[3];
 
     // maps absolute player id (1-4) → slot index (0-2), skipping localPlayerId
     private final int[] playerIdToSlot = new int[5]; // index 1-4 used
@@ -43,7 +44,9 @@ public class SidebarPanel extends JPanel {
         youLabel.setBounds(0, 6, 144, 14);
         card.add(youLabel);
 
-        cardNameLabel = Style.makeLabel("Player " + localPlayerId, Style.FONT_MED, Style.TEXT_WHITE, SwingConstants.CENTER);
+        cardNameLabel = Style.makeLabel(
+                localPlayerId >= 1 && localPlayerId <= 4 ? "Player " + localPlayerId : "Player ?",
+                Style.FONT_MED, Style.TEXT_WHITE, SwingConstants.CENTER);
         cardNameLabel.setBounds(0, 22, 110, 20);
         card.add(cardNameLabel);
 
@@ -91,13 +94,14 @@ public class SidebarPanel extends JPanel {
 
         // --- Other player cards ---
         // Build ordered list of player IDs excluding self, always in order 1→4
+        java.util.Arrays.fill(playerIdToSlot, -1);
         int slot = 0;
-        for (int pid = 1; pid <= 4; pid++) {
-            if (pid == localPlayerId) continue;
-            playerIdToSlot[pid] = slot;
+        for (int pid = 1; pid <= 4 && slot < 3; pid++) {
+            if (localPlayerId >= 1 && localPlayerId <= 4 && pid == localPlayerId) continue;
+            if (localPlayerId >= 1 && localPlayerId <= 4) playerIdToSlot[pid] = slot;
 
             Color accent = Style.PLAYER_ACCENTS[pid - 1]; // PLAYER_ACCENTS is 0-indexed
-            String tag = "P" + pid;
+            String tag = localPlayerId >= 1 && localPlayerId <= 4 ? "P" + pid : "P?";
             int cy = 238 + slot * 62;
 
             JPanel oCard = new JPanel(null);
@@ -109,6 +113,7 @@ public class SidebarPanel extends JPanel {
             JLabel pTag = Style.makeLabel(tag, Style.FONT_XXS_B, accent);
             pTag.setBounds(6, 4, 20, 12);
             oCard.add(pTag);
+            otherTagLabels[slot] = pTag;
 
             otherNameLabels[slot] = Style.makeLabel("---", Style.FONT_SMALL, Style.TEXT_WHITE);
             otherNameLabels[slot].setBounds(24, 4, 80, 12);
@@ -151,6 +156,19 @@ public class SidebarPanel extends JPanel {
         hint.setForeground(Style.TEXT_HINT);
         hint.setBounds(10, 575, 140, 20);
         add(hint);
+    }
+
+    public void setLocalPlayerId(int localPlayerId) {
+        if (localPlayerId < 1 || localPlayerId > 4) return;
+        cardNameLabel.setText("Player " + localPlayerId);
+        java.util.Arrays.fill(playerIdToSlot, -1);
+        int slot = 0;
+        for (int pid = 1; pid <= 4; pid++) {
+            if (pid == localPlayerId) continue;
+            playerIdToSlot[pid] = slot;
+            otherTagLabels[slot].setText("P" + pid);
+            slot++;
+        }
     }
 
     // --- Update methods called by ChronoArenaClient ---

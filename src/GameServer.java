@@ -57,7 +57,7 @@ public class GameServer {
         // Watch for all players to join, then mirror the client lobby countdown
         Thread roundStarter = new Thread(() -> {
             System.out.println("[GameServer] Waiting for " + REQUIRED_PLAYERS + " players...");
-            while (gameLogic.getPlayers().size() < REQUIRED_PLAYERS) {
+            while (gameLogic.getConnectedPlayerCount() < REQUIRED_PLAYERS) {
                 try { Thread.sleep(200); } catch (InterruptedException e) { return; }
             }
             System.out.println("[GameServer] All players connected — starting lobby countdown.");

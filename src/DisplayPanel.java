@@ -36,6 +36,8 @@ public class DisplayPanel extends JPanel {
     private ZoneUpdateCallback zoneCallback;
     // optional callback fired with player state updates
     private PlayerUpdateCallback playerCallback;
+    // optional callback fired when the server assigns the connected player ID
+    private java.util.function.IntConsumer assignedIdCallback;
     // optional callback fired for respawn countdown (playerId, secondsLeft)
     private java.util.function.BiConsumer<Integer, Integer> respawnCountdownCallback;
 
@@ -75,6 +77,11 @@ public class DisplayPanel extends JPanel {
     /** Optional — fired each second with each player's state. */
     public void setPlayerCallback(PlayerUpdateCallback cb) {
         this.playerCallback = cb;
+    }
+
+    /** Optional — fired when the server assigns the connected player ID. */
+    public void setAssignedIdCallback(java.util.function.IntConsumer cb) {
+        this.assignedIdCallback = cb;
     }
 
     /** Optional — fired for respawn countdown (playerId, secondsLeft). */
@@ -118,6 +125,7 @@ public class DisplayPanel extends JPanel {
                     if (response.startsWith("WELCOME")) {
                         int assignedId = Integer.parseInt(response.split(" ")[1]);
                         setStatus("Connected — Player " + assignedId);
+                        if (assignedIdCallback != null) assignedIdCallback.accept(assignedId);
                         System.out.println("[DisplayPanel] Server says: " + response);
                     }
 
