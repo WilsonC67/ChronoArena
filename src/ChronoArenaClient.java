@@ -58,6 +58,38 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
             System.err.println("[Client] Could not open UDP socket: " + e.getMessage());
         }
         SwingUtilities.invokeLater(this::buildUI);
+        
+        // Start listening for server lobby updates
+        startLobbyListener();
+    }
+
+    // Listen for lobby status updates from the server
+    private void startLobbyListener() {
+        new Thread(() -> {
+            byte[] buffer = new byte[256];
+            DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+            
+            try {
+                while (true) {
+                    udpSocket.receive(packet);
+                    String message = new String(packet.getData(), 0, packet.getLength()).trim();
+                    
+                    // Expected format: "LOBBY_UPDATE,p1,p2,p3,p4" where p1-p4 are 0 or 1
+                    if (message.startsWith("LOBBY_UPDATE,")) {
+                        String[] parts = message.split(",");
+                        if (parts.length == 5) {
+                            boolean[] connected = new boolean[4];
+                            for (int i = 0; i < 4; i++) {
+                                connected[i] = parts[i + 1].equals("1");
+                            }
+                            updateLobby(connected);
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                System.err.println("[Lobby Listener] Error: " + e.getMessage());
+            }
+        }, "LobbyListener").start();
     }
 
     private void buildUI() {
@@ -215,18 +247,18 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
     }
 
     private void disableSpaceOnButtons(Container container) {
-    for (Component c : container.getComponents()) {
-        if (c instanceof AbstractButton btn) {
-            btn.getInputMap(JComponent.WHEN_FOCUSED)
-               .put(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0, false), "none");
-            btn.getInputMap(JComponent.WHEN_FOCUSED)
-               .put(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0, true), "none");
-        }
-        if (c instanceof Container child) {
-            disableSpaceOnButtons(child);
+        for (Component c : container.getComponents()) {
+            if (c instanceof AbstractButton btn) {
+                btn.getInputMap(JComponent.WHEN_FOCUSED)
+                   .put(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0, false), "none");
+                btn.getInputMap(JComponent.WHEN_FOCUSED)
+                   .put(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0, true), "none");
+            }
+            if (c instanceof Container child) {
+                disableSpaceOnButtons(child);
+            }
         }
     }
-}
 
     // ── Entry point ───────────────────────────────────────────────────────────
 

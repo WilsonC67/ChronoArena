@@ -7,6 +7,7 @@ public class LobbyPanel extends JPanel {
     private final JLabel[] playerSlots = new JLabel[4];
     private final JLabel statusLabel;
     private final JLabel countdownLabel;
+    private final boolean[] playerConnected = new boolean[4];
     private final boolean[] playerReady = new boolean[4];
 
     private Timer countdownTimer;
@@ -62,6 +63,7 @@ public class LobbyPanel extends JPanel {
     public void updatePlayers(boolean[] connected) {
         int count = 0;
         for (int i = 0; i < 4; i++) {
+            playerConnected[i] = connected[i];
             if (connected[i]) {
                 playerSlots[i].setText("PLAYER " + (i + 1) + " — CONNECTED ✓");
                 playerSlots[i].setForeground(Style.PLAYER_ACCENTS[i]);
@@ -91,8 +93,9 @@ public class LobbyPanel extends JPanel {
         boolean allReady = true;
 
         for (int i = 0; i < 4; i++) {
-            // You'll need to track connected state separately or pass it here
-            // For now, checking if player is ready (assumes connected)
+            if (!playerConnected[i]) {
+                allConnected = false;
+            }
             if (!playerReady[i]) {
                 allReady = false;
             }
