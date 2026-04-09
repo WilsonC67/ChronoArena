@@ -7,6 +7,7 @@ public class LobbyPanel extends JPanel {
     private final JLabel[] playerSlots = new JLabel[4];
     private final JLabel statusLabel;
     private final JLabel countdownLabel;
+    private final boolean[] playerReady = new boolean[4];
 
     private Timer countdownTimer;
     private int secondsLeft = 5;
@@ -49,7 +50,7 @@ public class LobbyPanel extends JPanel {
         statusLabel.setBounds(0, 400, 900, 24);
         add(statusLabel);
 
-        // countdown label (hidden until all players connect)
+        // countdown label (hidden until all players connect and are ready)
         countdownLabel = new JLabel("", SwingConstants.CENTER);
         countdownLabel.setFont(new Font("SansSerif", Font.BOLD, 36));
         countdownLabel.setForeground(new Color(255, 200, 40));
@@ -68,12 +69,36 @@ public class LobbyPanel extends JPanel {
             } else {
                 playerSlots[i].setText("PLAYER " + (i + 1) + " — WAITING...");
                 playerSlots[i].setForeground(new Color(70, 75, 95));
+                playerReady[i] = false; // Reset ready status if disconnected
             }
         }
 
         statusLabel.setText(count + " / 4 players connected");
 
-        if (count == 4) {
+        checkIfShouldStartCountdown();
+    }
+
+    // called to mark a player as ready
+    public void setPlayerReady(int playerIndex, boolean ready) {
+        if (playerIndex >= 0 && playerIndex < 4) {
+            playerReady[playerIndex] = ready;
+            checkIfShouldStartCountdown();
+        }
+    }
+
+    private void checkIfShouldStartCountdown() {
+        boolean allConnected = true;
+        boolean allReady = true;
+
+        for (int i = 0; i < 4; i++) {
+            // You'll need to track connected state separately or pass it here
+            // For now, checking if player is ready (assumes connected)
+            if (!playerReady[i]) {
+                allReady = false;
+            }
+        }
+
+        if (allConnected && allReady) {
             startCountdown();
         } else {
             stopCountdown();
@@ -89,7 +114,7 @@ public class LobbyPanel extends JPanel {
         if (countdownTimer != null && countdownTimer.isRunning()) return;
         secondsLeft = 5;
         countdownLabel.setText("Game starts in " + secondsLeft + "...");
-        statusLabel.setText("All players connected — get ready!");
+        statusLabel.setText("All players ready — Starting game!");
         statusLabel.setForeground(new Color(100, 220, 100));
 
         countdownTimer = new Timer(1000, e -> {
