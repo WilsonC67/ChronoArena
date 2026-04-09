@@ -85,6 +85,16 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
             lastScores = scores;
             SwingUtilities.invokeLater(() -> hud.update(secondsLeft, scores));
         });
+        displayPanel.setPlayerCallback((id, score, hp, frozen, hasWeapon, hasShield, speedBoost) -> {
+            String itemType = hasWeapon ? "GUN" : hasShield ? "SHIELD" : "NONE";
+            if (id == localPlayerId) {
+                // pass score as 2nd argument — added in SidebarPanel update
+                sidebar.updateSelfCard("Player " + id, score, hp, frozen, hasWeapon, hasShield, speedBoost, itemType);
+            } else {
+                // SidebarPanel now handles the id→slot mapping internally
+                sidebar.updateOtherPlayer(id, "Player " + id, score, frozen, speedBoost, itemType);
+            }
+        });
         displayPanel.setZoneCallback((zoneIndex, state, ownerId, progress) -> {
             // Build display label
             String label;

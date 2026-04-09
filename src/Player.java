@@ -18,6 +18,9 @@ public class Player implements Serializable {
     // Score
     public int score;
 
+    // Health
+    public int hp;  // max 100
+
     // Status effects
     public boolean frozen;
     public int frozenTicksLeft;
@@ -40,6 +43,7 @@ public class Player implements Serializable {
         this.x = startX;
         this.y = startY;
         this.score = 0;
+        this.hp = 100;  // Start at full health
         this.connected = true;
         this.killed = false;
         this.lastAcceptedSeq = 0;

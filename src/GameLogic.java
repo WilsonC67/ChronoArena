@@ -19,7 +19,7 @@ public class GameLogic {
     public static final int GRID_COLS = PropertyFileReader.getColNum();
     public static final int GRID_ROWS = PropertyFileReader.getRowNum();
 
-    private static final int FREEZE_RANGE        = 3;
+
     private static final int ITEM_SPAWN_INTERVAL = 100; // every 5 sec at 20 ticks/sec
     private static final int MAX_ITEMS           = 6;
     private static final int[][] SPAWN_POINTS    = {{1,1},{13,1},{1,10},{13,10}};
