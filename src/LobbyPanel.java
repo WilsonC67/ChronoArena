@@ -90,18 +90,14 @@ public class LobbyPanel extends JPanel {
 
     private void checkIfShouldStartCountdown() {
         boolean allConnected = true;
-        boolean allReady = true;
 
         for (int i = 0; i < 4; i++) {
             if (!playerConnected[i]) {
                 allConnected = false;
             }
-            if (!playerReady[i]) {
-                allReady = false;
-            }
         }
 
-        if (allConnected && allReady) {
+        if (allConnected) {
             startCountdown();
         } else {
             stopCountdown();

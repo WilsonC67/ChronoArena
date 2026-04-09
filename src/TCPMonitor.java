@@ -14,6 +14,8 @@ public class TCPMonitor implements Runnable {
     private final int       port;
     private final GamePanel gamePanel;
     private final GameLogic gameLogic;
+    private final java.util.List<ClientHandler> allClients =
+            java.util.Collections.synchronizedList(new java.util.ArrayList<>());
 
     public TCPMonitor(int port, GamePanel gamePanel, GameLogic gameLogic) {
         this.port      = port;
@@ -31,7 +33,7 @@ public class TCPMonitor implements Runnable {
                 System.out.println("[TCPMonitor] Incoming connection from "
                         + clientSocket.getRemoteSocketAddress());
 
-                ClientHandler handler = new ClientHandler(clientSocket, gamePanel, gameLogic);
+                ClientHandler handler = new ClientHandler(clientSocket, gamePanel, gameLogic, allClients);
                 // Handshake runs on its own thread so accept() isn't blocked
                 Thread t = new Thread(handler, "ClientHandshake-" + clientSocket.getPort());
                 t.setDaemon(true);
