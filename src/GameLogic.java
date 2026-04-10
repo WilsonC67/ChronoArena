@@ -103,6 +103,13 @@ public class GameLogic {
         }
 
         updateZones();
+
+        for (Item item : items) {
+            if (item.active && --item.ticksLeft <= 0) {
+                item.active = false;
+                System.out.printf("[GameLogic] Item %s despawned%n", item.id);
+            }
+        }
         if (tick % ITEM_SPAWN_INTERVAL == 0) spawnItem();
         if (tick % Zone.POINTS_INTERVAL  == 0) updateZoneScores();
         beams.removeIf(beam -> --beam.ticksLeft <= 0);
@@ -123,6 +130,7 @@ public class GameLogic {
             case "MOVE_RIGHT":     handleMove(player,  1,  0); break;
             case "SHOOT":          handleShoot(player, pa.x, pa.y); break;
             case "PICKUP_POWERUP": checkItemCollection(player); break;
+            case "USE_ABILITY":    handleDash(player); break;
             case "GAME_START":     startRound(); break;
             case "READY":          handleReady(player); break;
             case "VOTE_START":     handleVote(player); break;
@@ -133,7 +141,7 @@ public class GameLogic {
 
     private void handleReady(Player player) {
         if (player.id < 1 || player.id > 4) return;
-        if (readyState[player.id - 1]) return; // already ready, ignore
+        if (readyState[player.id - 1]) return;
         readyState[player.id - 1] = true;
         System.out.printf("[GameLogic] Player %d is ready.%n", player.id);
         if (onReadyCallback != null) onReadyCallback.run();
@@ -141,11 +149,10 @@ public class GameLogic {
 
     private void handleVote(Player player) {
         if (player.id < 1 || player.id > 4) return;
-        if (voteState[player.id - 1]) return; // already voted, ignore
+        if (voteState[player.id - 1]) return;
         voteState[player.id - 1] = true;
         System.out.printf("[GameLogic] Player %d voted to start.%n", player.id);
         if (onVoteCallback != null) onVoteCallback.run();
-        // check if ALL connected players have voted
         boolean allVoted = true;
         for (Player p : players.values()) {
             if (p.connected && !voteState[p.id - 1]) { allVoted = false; break; }
@@ -160,8 +167,6 @@ public class GameLogic {
         }
     }
 
-    // ── Public state accessors ────────────────────────────────────────────────
-
     public synchronized boolean[]    getReadyState()  { return readyState.clone(); }
     public synchronized boolean[]    getVoteState()   { return voteState.clone(); }
     public synchronized Set<Integer> getGamePlayers() { return new LinkedHashSet<>(gamePlayers); }
@@ -172,10 +177,11 @@ public class GameLogic {
         gamePlayers.clear();
     }
 
-    // ── Movement / combat ─────────────────────────────────────────────────────
 
     private void handleMove(Player player, int dx, int dy) {
         if (player.frozen) return;
+        player.lastDx = dx;
+        player.lastDy = dy;
         int steps = player.speedBoost ? 2 : 1;
         for (int s = 0; s < steps; s++) {
             int nx = player.x + dx, ny = player.y + dy;
@@ -185,6 +191,22 @@ public class GameLogic {
             }
         }
     }
+
+    private void handleDash(Player player) {
+        if (player.frozen || player.dashCooldownTicks > 0) return;
+        if (player.lastDx == 0 && player.lastDy == 0) return;
+        for (int i = 0; i < Player.DASH_DISTANCE; i++) {
+            int nx = player.x + player.lastDx;
+            int ny = player.y + player.lastDy;
+            if (nx >= 0 && nx < GRID_COLS && ny >= 0 && ny < GRID_ROWS) {
+                player.x = nx;
+                player.y = ny;
+            }
+        }
+        player.dashCooldownTicks = Player.DASH_COOLDOWN_TICKS;
+        System.out.printf("[GameLogic] Player %d dashed to (%d,%d)%n", player.id, player.x, player.y);
+    }
+
 
     private void handleShoot(Player attacker, float dx, float dy) {
         if (!attacker.hasWeapon || attacker.frozen) return;

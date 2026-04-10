@@ -8,34 +8,31 @@ public class Player implements Serializable {
     public static final int FREEZE_DURATION_TICKS = 60;        // 3 seconds
     public static final int SPEED_BOOST_DURATION_TICKS = 100;  // 5 seconds
     public static final int FREEZE_POINT_PENALTY = 10;
+    public static final int DASH_COOLDOWN_TICKS = 40;  // 2 seconds
+    public static final int DASH_DISTANCE = 3;
 
     public final int id;
     public String name;
 
-    // Position on the tile grid
     public int x, y;
-
-    // Score
     public int score;
+    public int hp;
 
-    // Health
-    public int hp;  // max 100
-
-    // Status effects
     public boolean frozen;
     public int frozenTicksLeft;
 
-    public boolean hasWeapon;   // holds the GUN — can freeze nearby opponents once
-    public boolean hasShield;   // holds the SHIELD — absorbs one incoming freeze attack
+    public boolean hasWeapon;
+    public boolean hasShield;
     public boolean speedBoost;
     public int speedBoostTicksLeft;
 
-    // Connection state and respawn
-    public boolean connected;
-    public boolean killed;   
-    public int respawnTicksLeft;  // Countdown until respawn (0 = not respawning)
+    public int dashCooldownTicks;
+    public int lastDx, lastDy;
 
-    // Last accepted UDP sequence number — rejects duplicates and stale out-of-order packets
+    public boolean connected;
+    public boolean killed;
+    public int respawnTicksLeft;
+
     private int lastAcceptedSeq;
 
     public Player(int id, String name, int startX, int startY) {
@@ -61,7 +58,6 @@ public class Player implements Serializable {
         return false;
     }
 
-    /** Called once per tick to count down active status effects. */
     public void tickEffects() {
         if (frozen) {
             // Lose 1 HP per tick while frozen
@@ -77,9 +73,9 @@ public class Player implements Serializable {
                 speedBoostTicksLeft = 0;
             }
         }
+        if (dashCooldownTicks > 0) dashCooldownTicks--;
     }
 
-    /** Apply freeze effect and deduct points. Shield absorbs it if active. */
     public void applyFreeze() {
         if (hasShield) {
             hasShield = false; // shield consumed, freeze blocked
@@ -90,7 +86,6 @@ public class Player implements Serializable {
         score = Math.max(0, score - FREEZE_POINT_PENALTY);
     }
 
-    /** Apply shield — absorbs the next incoming freeze attack. */
     public void applyShield() {
         hasShield = true;
     }

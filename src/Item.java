@@ -27,19 +27,20 @@ public class Item implements Serializable {
     public int x;
     public int y;
 
-    // Whether this item is still on the map (false = already collected)
-    public boolean active;
+    public static final int DESPAWN_TICKS = 200; // 10 seconds at 20 ticks/sec
 
-    // Points awarded on pickup — only meaningful for ENERGY, 0 for all others
+    public boolean active;
     public final int value;
+    public int ticksLeft;
 
     public Item(String id, Type type, int x, int y, int value) {
-        this.id     = id;
-        this.type   = type;
-        this.x      = x;
-        this.y      = y;
-        this.value  = value;
-        this.active = true;
+        this.id        = id;
+        this.type      = type;
+        this.x         = x;
+        this.y         = y;
+        this.value     = value;
+        this.active    = true;
+        this.ticksLeft = DESPAWN_TICKS;
     }
 
     @Override
