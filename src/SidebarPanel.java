@@ -37,7 +37,7 @@ public class SidebarPanel extends JPanel {
         // --- Own player card ---
         JPanel card = new JPanel(null);
         card.setBackground(Style.BG_CARD);
-        card.setBorder(BorderFactory.createLineBorder(Style.ACCENT_BLUE, 2));
+        card.setBorder(BorderFactory.createLineBorder(Style.ACCENT_ORANGE, 2));
         card.setBounds(8, 50, 144, 180);
 
         JLabel youLabel = Style.makeLabel("YOU", Style.FONT_XXS_B, Style.TEXT_MUTED, SwingConstants.CENTER);
