@@ -92,6 +92,11 @@ public class GamePanel extends JPanel implements Runnable {
 
             if (packetQueue != null && gameLogic != null) {
                 List<PlayerAction> actions = packetQueue.drainReady(tick);
+                // Filter out players not locked into this game session (if game has started)
+                java.util.Set<Integer> gamePlayers = gameLogic.getGamePlayers();
+                if (!gamePlayers.isEmpty()) {
+                    actions.removeIf(a -> !gamePlayers.contains(a.playerId));
+                }
                 gameLogic.processTick(tick, actions);
             }
 
@@ -300,8 +305,11 @@ public class GamePanel extends JPanel implements Runnable {
             return;
         }
 
+        java.util.Set<Integer> gamePlayers = gameLogic.getGamePlayers();
         for (Player p : players.values()) {
             if (!p.connected || p.killed) continue;
+            // Once game is locked in, only render players in the session
+            if (!gamePlayers.isEmpty() && !gamePlayers.contains(p.id)) continue;
 
             int cx = p.x * TILE + TILE / 2;
             int cy = p.y * TILE + TILE / 2;
@@ -474,10 +482,13 @@ public class GamePanel extends JPanel implements Runnable {
     private void broadcastPlayerUpdate() {
         // Format: PLAYER_UPDATE,id,score,hp,frozen,hasWeapon,hasShield,speedBoost per player
         java.util.Map<Integer, Player> players = gameLogic.getPlayers();
+        java.util.Set<Integer> gamePlayers = gameLogic.getGamePlayers();
         StringBuilder sb = new StringBuilder("PLAYER_UPDATE");
         for (int i = 1; i <= 4; i++) {
             Player p = players.get(i);
-            if (p != null && p.connected && !p.killed) {
+            // Only include players locked into this game session
+            if (p != null && p.connected && !p.killed
+                    && (gamePlayers.isEmpty() || gamePlayers.contains(p.id))) {
                 sb.append(",").append(p.id);
                 sb.append(",").append(p.score);
                 sb.append(",").append(p.hp);

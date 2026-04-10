@@ -26,6 +26,8 @@ public enum PlayerActionEnum {
 
     // --- lobby ---
     GAME_START,
+    READY,
+    VOTE_START,
 
     // --- default ---
     IDLE;
