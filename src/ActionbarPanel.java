@@ -4,7 +4,13 @@ import javax.swing.*;
 
 public class ActionbarPanel extends JPanel {
 
+    private static final int ZONE_PANEL_W = 350;  // 3 zones × 110 + 2 gaps × 10
+    private static final int ZONE_W = 110;
+    private static final int ZONE_GAP = 10;
+
+    private final JLabel[] zoneNameLabels = new JLabel[3];
     private final JLabel[] zoneOwnerLabels = new JLabel[3];
+    private final JPanel[] zoneBarBackgrounds = new JPanel[3];
     private final JPanel[] zoneProgressBars = new JPanel[3];
 
     public ActionbarPanel(Consumer<String> onAction) {
@@ -12,39 +18,41 @@ public class ActionbarPanel extends JPanel {
         setPreferredSize(new Dimension(900, 52));
         setBackground(Style.BG_DARK);
 
-        // action buttons
-        JButton dashBtn = Style.makeStyledButton("DASH", new Color(60, 160, 80));
-        dashBtn.setBounds(170, 8, 100, 36);
-        dashBtn.addActionListener(e -> onAction.accept("USE_ABILITY"));
-        add(dashBtn);
-
-        JButton tagBtn = Style.makeStyledButton("TAG", new Color(200, 140, 30));
-        tagBtn.setBounds(280, 8, 100, 36);
-        tagBtn.addActionListener(e -> onAction.accept("TAG"));
-        add(tagBtn);
-
         // zone panels
         String[] zoneNames = {"ZONE A", "ZONE B", "ZONE C"};
         for (int i = 0; i < 3; i++) {
-            int bx = 395 + i * 120;
-
-            JLabel zName = Style.makeLabel(zoneNames[i], Style.FONT_XS, new Color(150, 155, 170), SwingConstants.CENTER);
-            zName.setBounds(bx, 3, 110, 14);
-            add(zName);
+            zoneNameLabels[i] = Style.makeLabel(zoneNames[i], Style.FONT_XS, new Color(150, 155, 170), SwingConstants.CENTER);
+            add(zoneNameLabels[i]);
 
             zoneOwnerLabels[i] = Style.makeLabel("---", Style.FONT_SMALL, Style.TEXT_MUTED, SwingConstants.CENTER);
-            zoneOwnerLabels[i].setBounds(bx, 17, 110, 16);
             add(zoneOwnerLabels[i]);
 
-            JPanel barBg = new JPanel(null);
-            barBg.setBackground(Style.BG_BAR);
-            barBg.setBounds(bx, 36, 110, 8);
-            add(barBg);
+            zoneBarBackgrounds[i] = new JPanel(null);
+            zoneBarBackgrounds[i].setBackground(Style.BG_BAR);
+            add(zoneBarBackgrounds[i]);
 
             zoneProgressBars[i] = new JPanel();
             zoneProgressBars[i].setBackground(new Color(80, 140, 255));
             zoneProgressBars[i].setBounds(0, 0, 0, 8);
-            barBg.add(zoneProgressBars[i]);
+            zoneBarBackgrounds[i].add(zoneProgressBars[i]);
+        }
+    }
+
+    // ── doLayout — runs every resize, positions zone panels to the left ────────
+    @Override
+    public void doLayout() {
+        super.doLayout();
+        int W = getWidth();
+        if (W == 0) return;
+
+        int left = 50;  // positioned to the left
+
+        for (int i = 0; i < 3; i++) {
+            int zx = left + i * (ZONE_W + ZONE_GAP);
+
+            zoneNameLabels[i].setBounds(zx, 3, ZONE_W, 14);
+            zoneOwnerLabels[i].setBounds(zx, 17, ZONE_W, 16);
+            zoneBarBackgrounds[i].setBounds(zx, 36, ZONE_W, 8);
         }
     }
 
