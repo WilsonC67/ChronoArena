@@ -2,6 +2,11 @@
  * Smoke tests for PlayerAction, Player, Zone, and Item.
  * Run with: javac TestModels.java && java TestModels
  */
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.Map;
+
 public class TestModels {
 
     static int passed = 0;
@@ -20,6 +25,8 @@ public class TestModels {
         testZoneBasics();
         testZoneContainsPosition();
         testZoneDefaultZones();
+        testContestedResolvesToLowestScoreCapture();
+        testCapturedZoneRemainsControlledWhenChallengerStillPresent();
         testItemBasics();
 
         System.out.println("\n==============================");
@@ -157,6 +164,86 @@ public class TestModels {
         check("Zone A id correct",             zones[0].id.equals("zone_a"));
         check("Zone B col correct",            zones[1].col == 7);
         check("Zone C starts UNCLAIMED",       zones[2].state == Zone.State.UNCLAIMED);
+    }
+
+    static void testContestedResolvesToLowestScoreCapture() {
+        try {
+            GameLogic logic = new GameLogic(30);
+            logic.addPlayer(1, "Alice");
+            logic.addPlayer(2, "Bob");
+
+            Field playersField = GameLogic.class.getDeclaredField("players");
+            playersField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            Map<Integer, Player> players = (Map<Integer, Player>) playersField.get(logic);
+
+            Player alice = players.get(1);
+            Player bob = players.get(2);
+            Zone zone = logic.getZones()[0];
+
+            alice.x = zone.col;
+            alice.y = zone.row;
+            alice.score = 10;
+            bob.x = zone.col;
+            bob.y = zone.row;
+            bob.score = 5;
+
+            Method updateZones = GameLogic.class.getDeclaredMethod("updateZones");
+            updateZones.setAccessible(true);
+
+            // begin contested state
+            updateZones.invoke(logic);
+            for (int i = 0; i < Zone.CONTEST_TICKS; i++) {
+                updateZones.invoke(logic);
+            }
+
+            check("Contested resolves to CAPTURING after delay", zone.state == Zone.State.CAPTURING);
+            check("Lowest-score player starts capture", zone.capturingId == 2);
+
+            updateZones.invoke(logic);
+            check("Capture remains active after contested resolution", zone.state == Zone.State.CAPTURING);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            check("Contested resolution test ran without exception", false);
+        }
+    }
+
+    static void testCapturedZoneRemainsControlledWhenChallengerStillPresent() {
+        try {
+            GameLogic logic = new GameLogic(30);
+            logic.addPlayer(1, "Alice");
+            logic.addPlayer(2, "Bob");
+
+            Field playersField = GameLogic.class.getDeclaredField("players");
+            playersField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            Map<Integer, Player> players = (Map<Integer, Player>) playersField.get(logic);
+
+            Player alice = players.get(1);
+            Player bob = players.get(2);
+            Zone zone = logic.getZones()[0];
+
+            alice.x = zone.col;
+            alice.y = zone.row;
+            alice.score = 5;
+            bob.x = zone.col;
+            bob.y = zone.row;
+            bob.score = 10;
+
+            Method updateZones = GameLogic.class.getDeclaredMethod("updateZones");
+            updateZones.setAccessible(true);
+
+            updateZones.invoke(logic);
+            for (int i = 0; i < Zone.CONTEST_TICKS; i++) updateZones.invoke(logic);
+            for (int i = 0; i < Zone.CAPTURE_TICKS; i++) updateZones.invoke(logic);
+
+            check("Zone becomes CONTROLLED after contested capture", zone.state == Zone.State.CONTROLLED);
+            updateZones.invoke(logic);
+            check("Captured zone remains CONTROLLED when challenger still present", zone.state == Zone.State.CONTROLLED);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            check("Captured zone control test ran without exception", false);
+        }
     }
 
     // ---- Item basics ----

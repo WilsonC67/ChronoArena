@@ -193,8 +193,9 @@ public class GamePanel extends JPanel implements Runnable {
                     fill   = new Color(ownerCol.getRed(), ownerCol.getGreen(), ownerCol.getBlue(), 50);
                     break;
                 case CAPTURING:
-                    border = COL_CAPTURING;
-                    fill   = new Color(60, 100, 220, 45);
+                    Color capturerCol = playerColor(zone.capturingId);
+                    border = capturerCol.darker();
+                    fill   = new Color(capturerCol.getRed(), capturerCol.getGreen(), capturerCol.getBlue(), 45);
                     break;
                 default: // UNCLAIMED
                     border = COL_UNCLAIMED;
@@ -225,7 +226,8 @@ public class GamePanel extends JPanel implements Runnable {
             // Capture progress bar at the bottom of the zone
             if (zone.state == Zone.State.CAPTURING && zone.captureProgress > 0) {
                 int barW = (int)((double) w * zone.captureProgress / Zone.CAPTURE_TICKS);
-                g.setColor(new Color(60, 100, 220, 140));
+                Color capturerCol = playerColor(zone.capturingId);
+                g.setColor(new Color(capturerCol.getRed(), capturerCol.getGreen(), capturerCol.getBlue(), 140));
                 g.fillRect(x, y + h - 6, barW, 6);
             }
 
