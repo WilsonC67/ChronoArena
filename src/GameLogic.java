@@ -15,7 +15,8 @@ public class GameLogic {
     public static final int GRID_COLS = PropertyFileReader.getColNum();
     public static final int GRID_ROWS = PropertyFileReader.getRowNum();
 
-    private static final int ITEM_SPAWN_INTERVAL    = 100;
+    private static final int ITEM_SPAWN_INTERVAL_MAX = 100;  // spawn interval at round start (5 sec)
+    private static final int ITEM_SPAWN_INTERVAL_MIN = 40;   // spawn interval at round end (2 sec)
     private static final int MAX_ITEMS              = 6;
     private static final int RESPAWN_DURATION_TICKS = 60;
     private static final int[][] SPAWN_POINTS       = {{1,1},{13,1},{1,10},{13,10}};
@@ -117,7 +118,8 @@ public class GameLogic {
                 System.out.printf("[GameLogic] Item %s despawned%n", item.id);
             }
         }
-        if (tick % ITEM_SPAWN_INTERVAL == 0) spawnItem();
+        int currentSpawnInterval = calculateDynamicSpawnInterval();
+        if (tick % currentSpawnInterval == 0) spawnItem();
         if (tick % Zone.POINTS_INTERVAL  == 0) updateZoneScores();
         beams.removeIf(beam -> --beam.ticksLeft <= 0);
 
@@ -405,6 +407,23 @@ public class GameLogic {
     }
 
     // ── Items ─────────────────────────────────────────────────────────────────
+
+    // calculate the dynamic spawn interval based on time remaining in the round.
+    private int calculateDynamicSpawnInterval() {
+        long timeRemainingMs = getTimeRemainingMs();
+        long totalRoundMs = roundDurationSeconds * 1000L;
+        
+        // avoid division by zero or negative values
+        if (totalRoundMs <= 0 || timeRemainingMs <= 0) {
+            return ITEM_SPAWN_INTERVAL_MIN; // fastest spawn rate at/after round end
+        }
+        
+        double progress = 1.0 - (double) timeRemainingMs / totalRoundMs;
+        progress = Math.max(0, Math.min(1, progress));
+        
+        int interval = ITEM_SPAWN_INTERVAL_MAX - (int) (progress * (ITEM_SPAWN_INTERVAL_MAX - ITEM_SPAWN_INTERVAL_MIN));
+        return Math.max(ITEM_SPAWN_INTERVAL_MIN, interval); // ensure we never go below minimum
+    }
 
     private void spawnItem() {
         if (items.stream().filter(i -> i.active).count() >= MAX_ITEMS) return;
