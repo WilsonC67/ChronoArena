@@ -104,6 +104,9 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
                 SwingUtilities.invokeLater(() -> lobbyPanel.triggerCountdown()));
         displayPanel.setVoteCallback((votes, total) ->
                 SwingUtilities.invokeLater(() -> lobbyPanel.updateVotes(votes, total)));
+        displayPanel.setRestartResultCallback(result -> SwingUtilities.invokeLater(() -> {
+            gameOverPanel.triggerReturnToLobby();
+        }));
         displayPanel.setScoreCallback((secondsLeft, scores) -> {
             lastScores = scores;
             SwingUtilities.invokeLater(() -> hud.update(secondsLeft, scores));
@@ -159,6 +162,10 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
         displayPanel.setBounds(0, 0, dp.width, dp.height);
         gameOverPanel = new GameOverPanel();
         gameOverPanel.setBounds(0, 0, dp.width, dp.height);
+        gameOverPanel.setOnLobbyCallback(() -> SwingUtilities.invokeLater(() -> {
+            hud.reset();
+            lobbyPanel.reset();
+        }));
         lobbyPanel = new LobbyPanel();
         lobbyPanel.setBounds(0, 0, dp.width, dp.height);
         lobbyPanel.setOnCountdownEnd(this::onGameStart);
@@ -264,6 +271,9 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
      * Example: connected = {true, true, false, false} → 2/4 players connected.
      */
     public void updateLobby(boolean[] connected) {
+        int count = 0;
+        for (boolean c : connected) if (c) count++;
+        connectedPlayerCount = count;
         SwingUtilities.invokeLater(() -> lobbyPanel.updatePlayers(connected));
     }
 
@@ -274,6 +284,7 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
     @Override
     public void onGameStart() {
         System.out.println("=== GAME START ===");
+        hud.reset();  // Reset the hud to allow game-end detection to fire again
         // Tell the server the lobby countdown finished — start the round timer
         sendUDP(getEffectivePlayerId() + "," + UDP_PORT + ",GAME_START,0.0,0.0,," + udpSeq++);
     }
@@ -283,8 +294,17 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
     @Override
     public void onGameEnd() {
         System.out.println("=== GAME OVER ===");
-        SwingUtilities.invokeLater(() -> gameOverPanel.show(lastScores, null));
+        int connectedCount = 0;
+        for (boolean b : new boolean[]{true, true, true, true}) connectedCount++; // placeholder
+        // Count connected players from lastScores — anyone with a slot in use
+        // The real count comes from the lobby; use a safe default of 2 minimum
+        final int count = Math.max(2, countConnectedPlayers());
+        SwingUtilities.invokeLater(() -> gameOverPanel.show(lastScores, null, count));
     }
+
+    /** Returns how many player slots are currently active based on last known lobby state. */
+    private int connectedPlayerCount = 0;
+    private int countConnectedPlayers() { return connectedPlayerCount > 0 ? connectedPlayerCount : 2; }
 
     // ── UDP sender ────────────────────────────────────────────────────────────
 

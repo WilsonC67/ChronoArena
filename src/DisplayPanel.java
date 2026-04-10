@@ -34,8 +34,12 @@ public class DisplayPanel extends JPanel {
     private java.util.function.Consumer<boolean[]> readyCallback;
     // optional callback fired when server says all players are ready
     private Runnable countdownStartCallback;
-    // optional callback fired with (votes, total) when vote tally changes
+    // optional callback fired with (votes, total) when lobby vote tally changes
     private java.util.function.BiConsumer<Integer, Integer> voteCallback;
+    // optional callback fired with (votes, total) when restart vote tally changes
+    private java.util.function.BiConsumer<Integer, Integer> restartVoteCallback;
+    // optional callback fired with "yes" or "no" when restart vote resolves
+    private java.util.function.Consumer<String> restartResultCallback;
     // optional callback fired when the server sends a SCORE_UPDATE line
     private java.util.function.BiConsumer<Integer, int[]> scoreCallback;
     // optional callback fired with zone updates: (zoneIndex, stateName, ownerId, progress)
@@ -83,6 +87,16 @@ public class DisplayPanel extends JPanel {
     /** Optional — fired with (votes, total) when vote tally updates. */
     public void setVoteCallback(java.util.function.BiConsumer<Integer, Integer> cb) {
         this.voteCallback = cb;
+    }
+
+    /** Optional — fired with (votes, total) when restart vote tally updates. */
+    public void setRestartVoteCallback(java.util.function.BiConsumer<Integer, Integer> cb) {
+        this.restartVoteCallback = cb;
+    }
+
+    /** Optional — fired with "yes" or "no" when the restart vote resolves. */
+    public void setRestartResultCallback(java.util.function.Consumer<String> cb) {
+        this.restartResultCallback = cb;
     }
 
     /** Optional — fired with (secondsLeft, int[4] scores) each second. */
@@ -204,6 +218,16 @@ public class DisplayPanel extends JPanel {
                 int total = Integer.parseInt(parts[2]);
                 voteCallback.accept(votes, total);
             }
+        } else if (line.startsWith("RESTART_VOTE_UPDATE,") && restartVoteCallback != null) {
+            String[] parts = line.split(",");
+            if (parts.length == 3) {
+                int votes = Integer.parseInt(parts[1]);
+                int total = Integer.parseInt(parts[2]);
+                restartVoteCallback.accept(votes, total);
+            }
+        } else if (line.startsWith("RESTART_RESULT,") && restartResultCallback != null) {
+            String result = line.split(",")[1]; // "yes" or "no"
+            restartResultCallback.accept(result);
         } else if (line.startsWith("LOBBY_UPDATE,") && lobbyCallback != null) {
             String[] parts = line.split(",");
             if (parts.length == 5) {

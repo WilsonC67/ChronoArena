@@ -5,6 +5,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import javax.imageio.ImageIO;
 import javax.swing.*;
 
@@ -59,8 +62,10 @@ public class GamePanel extends JPanel implements Runnable {
     private final List<ClientHandler> clients = new CopyOnWriteArrayList<>();
 
     // ── Animation state ───────────────────────────────────────────────────────
-    private int   tick     = 0;
-    private float pulse    = 0f;   // 0-1 sine wave used for frozen shimmer / item bounce
+    private int     tick                    = 0;
+    private float   pulse                   = 0f;
+    private boolean gameWasActive           = false; // tracks transition to detect game-over
+    private boolean restartTimeoutScheduled = false;
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -98,6 +103,17 @@ public class GamePanel extends JPanel implements Runnable {
                     actions.removeIf(a -> !gamePlayers.contains(a.playerId));
                 }
                 gameLogic.processTick(tick, actions);
+
+                // Detect the active→inactive transition (round just ended)
+                boolean gameNowActive = gameLogic.isActive();
+                if (gameWasActive && !gameNowActive && !restartTimeoutScheduled) {
+                    restartTimeoutScheduled = true;
+                    scheduleRestartTimeout();
+                }
+                if (!gameWasActive && gameNowActive) {
+                    restartTimeoutScheduled = false; // fresh game, reset guard
+                }
+                gameWasActive = gameNowActive;
             }
 
             BufferedImage frame = renderToImage();
@@ -457,6 +473,22 @@ public class GamePanel extends JPanel implements Runnable {
         String sub = "Up to 4 players can join";
         fm = g.getFontMetrics();
         g.drawString(sub, (pw - fm.stringWidth(sub)) / 2, ph / 2 + 20);
+    }
+
+    // ── Restart vote timeout ──────────────────────────────────────────────────
+
+    private void scheduleRestartTimeout() {
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "RestartVoteTimer");
+            t.setDaemon(true);
+            return t;
+        });
+        scheduler.schedule((Runnable) () -> {
+            if (gameLogic != null) gameLogic.resolveRestartTimeout();
+            restartTimeoutScheduled = false;
+            scheduler.shutdown();
+        }, 15, TimeUnit.SECONDS);
+        System.out.println("[GamePanel] Restart vote timer started (15s).");
     }
 
     // ── Broadcast ─────────────────────────────────────────────────────────────
