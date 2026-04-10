@@ -93,7 +93,7 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
                 () -> System.exit(0));
 
         actionbar = new ActionbarPanel(action ->
-                sendUDP(getEffectivePlayerId() + "," + UDP_PORT + ",ACTION,0.0,0.0," + action + "," + udpSeq++));
+                sendUDP(getEffectivePlayerId() + "," + UDP_PORT + "," + action + ",0.0,0.0,," + udpSeq++));
 
         // DisplayPanel receives the server IP directly — no config.properties needed on client
         DisplayPanel displayPanel = new DisplayPanel(serverIp, requestedPlayerId);
