@@ -37,7 +37,7 @@ public class SidebarPanel extends JPanel {
         // --- Own player card ---
         JPanel card = new JPanel(null);
         card.setBackground(Style.BG_CARD);
-        card.setBorder(BorderFactory.createLineBorder(Style.ACCENT_ORANGE, 2));
+        card.setBorder(BorderFactory.createLineBorder(new Color(200, 200, 200), 2));
         card.setBounds(8, 50, 144, 180);
 
         JLabel youLabel = Style.makeLabel("YOU", Style.FONT_XXS_B, Style.TEXT_MUTED, SwingConstants.CENTER);
@@ -106,7 +106,7 @@ public class SidebarPanel extends JPanel {
 
             JPanel oCard = new JPanel(null);
             oCard.setBackground(Style.BG_CARD);
-            oCard.setBorder(BorderFactory.createLineBorder(accent, 1));
+            oCard.setBorder(BorderFactory.createLineBorder(accent, 2));
             oCard.setBounds(8, cy, 144, 62);
             add(oCard);
 
@@ -136,11 +136,6 @@ public class SidebarPanel extends JPanel {
             oDiv.setForeground(Style.BORDER_DIM);
             oDiv.setBounds(6, 40, 132, 2);
             oCard.add(oDiv);
-
-            // Connection dot — kept as a label so we can update it later
-            otherConnLabels[slot] = Style.makeLabel("○ WAITING", Style.FONT_XXS, new Color(120, 120, 120));
-            otherConnLabels[slot].setBounds(6, 46, 132, 10);
-            oCard.add(otherConnLabels[slot]);
 
             slot++;
         }
