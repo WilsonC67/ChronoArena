@@ -64,6 +64,7 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
         SwingUtilities.invokeLater(() -> {
             setTitle("ChronoArena — Player " + assignedId + "  [server: " + serverIp + "]");
             if (sidebar != null) sidebar.setLocalPlayerId(assignedId);
+            if (lobbyPanel != null) lobbyPanel.setLocalPlayerId(assignedId);
         });
     }
 
@@ -98,6 +99,11 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
         DisplayPanel displayPanel = new DisplayPanel(serverIp, requestedPlayerId);
         displayPanel.setAssignedIdCallback(this::applyAssignedPlayerId);
         displayPanel.setLobbyCallback(this::updateLobby);
+        displayPanel.setReadyCallback(this::updateReady);
+        displayPanel.setCountdownStartCallback(() ->
+                SwingUtilities.invokeLater(() -> lobbyPanel.triggerCountdown()));
+        displayPanel.setVoteCallback((votes, total) ->
+                SwingUtilities.invokeLater(() -> lobbyPanel.updateVotes(votes, total)));
         displayPanel.setScoreCallback((secondsLeft, scores) -> {
             lastScores = scores;
             SwingUtilities.invokeLater(() -> hud.update(secondsLeft, scores));
@@ -156,6 +162,11 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
         lobbyPanel = new LobbyPanel();
         lobbyPanel.setBounds(0, 0, dp.width, dp.height);
         lobbyPanel.setOnCountdownEnd(this::onGameStart);
+        lobbyPanel.setLocalPlayerId(getEffectivePlayerId());
+        lobbyPanel.setReadyUDPCallback(() ->
+                sendUDP(getEffectivePlayerId() + "," + UDP_PORT + ",READY,0.0,0.0,," + udpSeq++));
+        lobbyPanel.setVoteUDPCallback(() ->
+                sendUDP(getEffectivePlayerId() + "," + UDP_PORT + ",VOTE_START,0.0,0.0,," + udpSeq++));
         center.add(displayPanel,  JLayeredPane.DEFAULT_LAYER);
         center.add(gameOverPanel, JLayeredPane.PALETTE_LAYER);
         center.add(lobbyPanel,    JLayeredPane.MODAL_LAYER);
@@ -254,6 +265,10 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
      */
     public void updateLobby(boolean[] connected) {
         SwingUtilities.invokeLater(() -> lobbyPanel.updatePlayers(connected));
+    }
+
+    public void updateReady(boolean[] readyFlags) {
+        SwingUtilities.invokeLater(() -> lobbyPanel.updateReady(readyFlags));
     }
 
     @Override

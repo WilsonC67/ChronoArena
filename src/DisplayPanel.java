@@ -30,6 +30,12 @@ public class DisplayPanel extends JPanel {
 
     // optional callback fired when the server sends a LOBBY_UPDATE line
     private java.util.function.Consumer<boolean[]> lobbyCallback;
+    // optional callback fired when the server sends a READY_UPDATE line
+    private java.util.function.Consumer<boolean[]> readyCallback;
+    // optional callback fired when server says all players are ready
+    private Runnable countdownStartCallback;
+    // optional callback fired with (votes, total) when vote tally changes
+    private java.util.function.BiConsumer<Integer, Integer> voteCallback;
     // optional callback fired when the server sends a SCORE_UPDATE line
     private java.util.function.BiConsumer<Integer, int[]> scoreCallback;
     // optional callback fired with zone updates: (zoneIndex, stateName, ownerId, progress)
@@ -62,6 +68,21 @@ public class DisplayPanel extends JPanel {
     /** Optional — set before the connection is established. */
     public void setLobbyCallback(java.util.function.Consumer<boolean[]> cb) {
         this.lobbyCallback = cb;
+    }
+
+    /** Optional — fired when the server broadcasts ready states. */
+    public void setReadyCallback(java.util.function.Consumer<boolean[]> cb) {
+        this.readyCallback = cb;
+    }
+
+    /** Optional — fired when server confirms all players ready and countdown should start. */
+    public void setCountdownStartCallback(Runnable cb) {
+        this.countdownStartCallback = cb;
+    }
+
+    /** Optional — fired with (votes, total) when vote tally updates. */
+    public void setVoteCallback(java.util.function.BiConsumer<Integer, Integer> cb) {
+        this.voteCallback = cb;
     }
 
     /** Optional — fired with (secondsLeft, int[4] scores) each second. */
@@ -167,7 +188,23 @@ public class DisplayPanel extends JPanel {
     }
 
     private void handleTextLine(String line) {
-        if (line.startsWith("LOBBY_UPDATE,") && lobbyCallback != null) {
+        if (line.startsWith("READY_UPDATE,") && readyCallback != null) {
+            String[] parts = line.split(",");
+            if (parts.length == 5) {
+                boolean[] ready = new boolean[4];
+                for (int i = 0; i < 4; i++) ready[i] = parts[i + 1].equals("1");
+                readyCallback.accept(ready);
+            }
+        } else if (line.equals("COUNTDOWN_START") && countdownStartCallback != null) {
+            countdownStartCallback.run();
+        } else if (line.startsWith("VOTE_UPDATE,") && voteCallback != null) {
+            String[] parts = line.split(",");
+            if (parts.length == 3) {
+                int votes = Integer.parseInt(parts[1]);
+                int total = Integer.parseInt(parts[2]);
+                voteCallback.accept(votes, total);
+            }
+        } else if (line.startsWith("LOBBY_UPDATE,") && lobbyCallback != null) {
             String[] parts = line.split(",");
             if (parts.length == 5) {
                 boolean[] connected = new boolean[4];

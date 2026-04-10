@@ -68,6 +68,9 @@ public class ClientHandler implements Runnable {
 
                 assignedPlayerId = assignedId;
                 gameLogic.addPlayer(assignedPlayerId, "Player " + assignedPlayerId);
+                gameLogic.setOnReadyCallback(this::broadcastReadyUpdate);
+                gameLogic.setOnVoteCallback(this::broadcastVoteUpdate);
+                gameLogic.setOnAllReadyCallback(this::broadcastCountdownStart);
                 sendTextLine("WELCOME " + assignedPlayerId);
                 System.out.printf("[ClientHandler] Player %d joined from %s%n",
                         assignedPlayerId, socket.getRemoteSocketAddress());
@@ -143,6 +146,40 @@ public class ClientHandler implements Runnable {
         StringBuilder sb = new StringBuilder("LOBBY_UPDATE");
         for (boolean c : connected) sb.append(c ? ",1" : ",0");
         sendTextMessage(sb.toString());
+    }
+
+    /** Broadcasts current ready state to all clients. */
+    public void broadcastReadyUpdate() {
+        boolean[] ready = gameLogic.getReadyState();
+        StringBuilder sb = new StringBuilder("READY_UPDATE");
+        for (boolean r : ready) sb.append(r ? ",1" : ",0");
+        String msg = sb.toString();
+        synchronized (allClients) {
+            for (ClientHandler h : allClients) h.sendTextMessage(msg);
+        }
+    }
+
+    /** Broadcasts current vote tally to all clients as VOTE_UPDATE,votes,total */
+    public void broadcastVoteUpdate() {
+        boolean[] votes = gameLogic.getVoteState();
+        int voteCount = 0, total = 0;
+        for (int i = 0; i < 4; i++) {
+            // count only connected players
+        }
+        // recount properly from allClients
+        synchronized (allClients) {
+            total = allClients.size();
+            for (boolean v : votes) if (v) voteCount++;
+            String msg = "VOTE_UPDATE," + voteCount + "," + total;
+            for (ClientHandler h : allClients) h.sendTextMessage(msg);
+        }
+    }
+
+    /** Tells all clients to start the countdown — server is the source of truth. */
+    public void broadcastCountdownStart() {
+        synchronized (allClients) {
+            for (ClientHandler h : allClients) h.sendTextMessage("COUNTDOWN_START");
+        }
     }
 
     /** Builds the current connected-player array and pushes it to all clients. */
