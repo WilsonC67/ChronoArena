@@ -1,4 +1,6 @@
 import java.io.Serializable;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Holds the server-side state of a single capture zone.
@@ -11,10 +13,13 @@ public class Zone implements Serializable {
     public enum State { UNCLAIMED, CAPTURING, CONTROLLED, CONTESTED }
 
     // Tuning constants (at 20 ticks/sec)
-    public static final int CAPTURE_TICKS      = 60;   // 3 seconds to fully capture
-    public static final int GRACE_TICKS        = 100;  // 5 second grace period when owner leaves
-    public static final int POINTS_INTERVAL    = 20;   // grant points every 20 ticks (once per second)
-    public static final int POINTS_PER_INTERVAL = 5;   // points awarded to owner each interval
+    public static final int CAPTURE_TICKS               = 60;   // 3 seconds to fully capture
+    public static final int CONTEST_TICKS               = 60;   // 3 seconds to stay contested before capture begins
+    public static final int CAPTURE_PROTECTION_TICKS    = 5;    // short immunity when contested capture begins
+    public static final int POST_CAPTURE_CONTROL_TICKS  = 0;    // challenge should recontest immediately after capture
+    public static final int GRACE_TICKS                 = 100;  // 5 second grace period when owner leaves
+    public static final int POINTS_INTERVAL             = 20;   // grant points every 20 ticks (once per second)
+    public static final int POINTS_PER_INTERVAL         = 5;    // points awarded to owner each interval
 
     // Identity
     public final String id;
@@ -30,10 +35,12 @@ public class Zone implements Serializable {
     public State  state;
     public int    ownerId;       // player ID who controls the zone (-1 = no owner)
     public int    capturingId;   // player ID currently progressing capture (-1 = none)
-    public int    captureProgress;  // 0 to CAPTURE_TICKS
-    public int    graceTicksLeft;   // counts down when owner leaves zone
-    public int    pointsTimer;      // counts up to POINTS_INTERVAL, then resets
-
+    public int    captureProgress;        // 0 to CAPTURE_TICKS
+    public int    graceTicksLeft;         // counts down when owner leaves zone
+    public int    pointsTimer;            // counts up to POINTS_INTERVAL, then resets
+    public int    contestedTicksLeft;     // counts down while the zone remains contested
+    public int    protectionTicksLeft;    // short protection when contested capture begins or just after capture
+    public Set<Integer> presentPlayerIds = new HashSet<>(); // player IDs currently in the zone
     public Zone(String id, String name, int col, int row, int width, int height) {
         this.id     = id;
         this.name   = name;
@@ -48,6 +55,8 @@ public class Zone implements Serializable {
         this.captureProgress = 0;
         this.graceTicksLeft  = GRACE_TICKS;
         this.pointsTimer     = 0;
+        this.contestedTicksLeft = 0;
+        this.protectionTicksLeft = 0;
     }
 
     /**

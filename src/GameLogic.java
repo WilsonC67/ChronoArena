@@ -279,6 +279,24 @@ public class GameLogic {
         return inZone;
     }
 
+    private void beginContested(Zone zone) {
+        zone.state = Zone.State.CONTESTED;
+        zone.capturingId = -1;
+        zone.captureProgress = 0;
+        zone.contestedTicksLeft = Zone.CONTEST_TICKS;
+        zone.protectionTicksLeft = 0;
+    }
+
+    private Player pickLowestScorePlayer(List<Player> players) {
+        Player lowest = players.get(0);
+        for (Player p : players) {
+            if (p.score < lowest.score || (p.score == lowest.score && p.id < lowest.id)) {
+                lowest = p;
+            }
+        }
+        return lowest;
+    }
+
     private void handleUnclaimed(Zone zone, List<Player> inZone) {
         if (inZone.isEmpty()) return;
         if (inZone.size() == 1) {
@@ -286,7 +304,7 @@ public class GameLogic {
             zone.capturingId = inZone.get(0).id;
             zone.captureProgress = 1;
         } else {
-            zone.state = Zone.State.CONTESTED;
+            beginContested(zone);
         }
     }
 
@@ -297,33 +315,60 @@ public class GameLogic {
 
         if (!capturerPresent && inZone.isEmpty()) {
             zone.state = Zone.State.UNCLAIMED; zone.capturingId = -1; zone.captureProgress = 0;
+            zone.protectionTicksLeft = 0;
         } else if (!capturerPresent) {
-            zone.capturingId = others.get(0).id; zone.captureProgress = 0;
-        } else if (!others.isEmpty()) {
-            zone.state = Zone.State.CONTESTED;
+            Player nextCapturer = pickLowestScorePlayer(others);
+            zone.capturingId = nextCapturer.id;
+            zone.captureProgress = 0;
+            zone.protectionTicksLeft = 0;
         } else {
             zone.captureProgress++;
             if (zone.captureProgress >= Zone.CAPTURE_TICKS) {
                 zone.state = Zone.State.CONTROLLED;
                 zone.ownerId = zone.capturingId;
                 zone.graceTicksLeft = Zone.GRACE_TICKS;
+                zone.protectionTicksLeft = Zone.POST_CAPTURE_CONTROL_TICKS;
+
+                zone.presentPlayerIds.clear();
+                for (Player p : inZone) zone.presentPlayerIds.add(p.id);
+
                 System.out.printf("[GameLogic] Zone %s captured by player %d%n", zone.name, zone.ownerId);
             }
         }
     }
 
     private void handleControlled(Zone zone, List<Player> inZone) {
+        // Update which players are currently in the zone
+        Set<Integer> currentIds = new HashSet<>();
+        for (Player p : inZone) currentIds.add(p.id);
+
+        // Remove players from presentPlayerIds if they've left the zone
+        zone.presentPlayerIds.retainAll(currentIds);
+
         boolean ownerPresent = inZone.stream().anyMatch(p -> p.id == zone.ownerId);
         List<Player> challengers = new ArrayList<>();
-        for (Player p : inZone) { if (p.id != zone.ownerId) challengers.add(p); }
+        for (Player p : inZone) {
+            // Only count as a challenger if they LEFT and RE-ENTERED since control was established
+            if (p.id != zone.ownerId && !zone.presentPlayerIds.contains(p.id)) {
+                challengers.add(p);
+            }
+        }
 
         if (ownerPresent) {
             zone.graceTicksLeft = Zone.GRACE_TICKS;
-            if (!challengers.isEmpty()) zone.state = Zone.State.CONTESTED;
+            if (!challengers.isEmpty()) {
+                if (zone.protectionTicksLeft > 0) {
+                    zone.protectionTicksLeft--;
+                } else {
+                    beginContested(zone);
+                }
+            }
         } else if (!challengers.isEmpty()) {
             zone.state = Zone.State.CAPTURING;
             zone.capturingId = challengers.get(0).id;
-            zone.captureProgress = 0; zone.ownerId = -1;
+            zone.captureProgress = 0;
+            zone.ownerId = -1;
+            zone.protectionTicksLeft = 0;
         } else {
             zone.graceTicksLeft--;
             if (zone.graceTicksLeft <= 0) {
@@ -335,15 +380,28 @@ public class GameLogic {
     }
 
     private void handleContested(Zone zone, List<Player> inZone) {
-        if (inZone.size() > 1) return;
+        if (zone.contestedTicksLeft > 0) {
+            zone.contestedTicksLeft--;
+        }
+
         if (inZone.isEmpty()) {
             zone.state = Zone.State.UNCLAIMED;
             zone.ownerId = -1; zone.capturingId = -1; zone.captureProgress = 0;
-        } else {
-            zone.state = Zone.State.CAPTURING;
-            zone.capturingId = inZone.get(0).id;
-            zone.captureProgress = 0; zone.ownerId = -1;
+            zone.contestedTicksLeft = 0;
+            zone.protectionTicksLeft = 0;
+            return;
         }
+
+        if (zone.contestedTicksLeft > 0) {
+            return;
+        }
+
+        Player nextCapturer = pickLowestScorePlayer(inZone);
+        zone.state = Zone.State.CAPTURING;
+        zone.capturingId = nextCapturer.id;
+        zone.captureProgress = 0;
+        zone.ownerId = -1;
+        zone.protectionTicksLeft = Zone.CAPTURE_PROTECTION_TICKS;
     }
 
     // ── Items ─────────────────────────────────────────────────────────────────
