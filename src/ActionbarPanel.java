@@ -15,7 +15,7 @@ public class ActionbarPanel extends JPanel {
         // action buttons
         JButton dashBtn = Style.makeStyledButton("DASH", new Color(60, 160, 80));
         dashBtn.setBounds(170, 8, 100, 36);
-        dashBtn.addActionListener(e -> onAction.accept("DASH"));
+        dashBtn.addActionListener(e -> onAction.accept("USE_ABILITY"));
         add(dashBtn);
 
         JButton tagBtn = Style.makeStyledButton("TAG", new Color(200, 140, 30));
