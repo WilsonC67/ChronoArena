@@ -223,6 +223,41 @@ public class LobbyPanel extends JPanel {
         this.onCountdownEnd = callback;
     }
 
+    /**
+     * Resets all lobby state and makes the panel visible again.
+     * Call this when returning from game-over, whether restarting or returning to lobby.
+     */
+    public void reset() {
+        SwingUtilities.invokeLater(() -> {
+            // Clear ready/vote state
+            for (int i = 0; i < 4; i++) playerReady[i] = false;
+            localVoted = false;
+            voteCount  = 0;
+            totalCount = 0;
+
+            // Reset vote button
+            voteButton.setText("VOTE TO START");
+            voteButton.setEnabled(true);
+            voteButton.setVisible(false);
+
+            // Reset countdown
+            stopCountdown();
+            countdownLabel.setText("");
+
+            // Reset status
+            statusLabel.setText("0 / 4 players connected");
+            statusLabel.setForeground(COL_STATUS);
+
+            // Reset ready badges and buttons
+            refreshReadyBadges();
+            refreshReadyButtons();
+
+            setVisible(true);
+            revalidate();
+            repaint();
+        });
+    }
+
     // ── Internal ──────────────────────────────────────────────────────────────
 
     private void onVoteClicked() {

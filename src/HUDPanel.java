@@ -81,5 +81,10 @@ public class HUDPanel extends JPanel {
         repaint();
     }
 
+    public void reset() {
+        gameEndFired = false;
+        clearRespawnMessage();
+    }
+
 
 }

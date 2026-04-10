@@ -37,10 +37,14 @@ public class GameLogic {
     // ── Ready / vote-to-start state ───────────────────────────────────────────
     private final boolean[]          readyState  = new boolean[4]; // index = playerId-1
     private final boolean[]          voteState   = new boolean[4]; // index = playerId-1
+    private final boolean[]          restartVoteState = new boolean[4]; // index = playerId-1
     private final Set<Integer>       gamePlayers = new LinkedHashSet<>();
     private Runnable onReadyCallback;    // fires whenever a player readies up
     private Runnable onVoteCallback;     // fires whenever a player votes
     private Runnable onAllReadyCallback; // fires when all connected players have voted
+    private Runnable onRestartVoteCallback;    // fires whenever a player votes to restart
+    private Runnable onAllRestartCallback;     // fires when all players vote to restart
+    private Runnable onRestartDeclinedCallback; // fires when restart vote fails
 
     public GameLogic(int roundDurationSeconds) {
         this.zones                = Zone.createDefaultZones();
@@ -52,6 +56,9 @@ public class GameLogic {
     public void setOnReadyCallback(Runnable cb)    { this.onReadyCallback    = cb; }
     public void setOnVoteCallback(Runnable cb)     { this.onVoteCallback     = cb; }
     public void setOnAllReadyCallback(Runnable cb) { this.onAllReadyCallback = cb; }
+    public void setOnRestartVoteCallback(Runnable cb)    { this.onRestartVoteCallback    = cb; }
+    public void setOnAllRestartCallback(Runnable cb)     { this.onAllRestartCallback    = cb; }
+    public void setOnRestartDeclinedCallback(Runnable cb) { this.onRestartDeclinedCallback = cb; }
 
     // ── Game loop tick ────────────────────────────────────────────────────────
 
@@ -134,6 +141,7 @@ public class GameLogic {
             case "GAME_START":     startRound(); break;
             case "READY":          handleReady(player); break;
             case "VOTE_START":     handleVote(player); break;
+            case "RESTART_VOTE":   handleRestartVote(player); break;
             default: break;
         }
         if (gameActive) checkItemCollection(player);
@@ -167,13 +175,23 @@ public class GameLogic {
         }
     }
 
+    private void handleRestartVote(Player player) {
+        if (player.id < 1 || player.id > 4) return;
+        if (restartVoteState[player.id - 1]) return;
+        restartVoteState[player.id - 1] = true;
+        System.out.printf("[GameLogic] Player %d voted to restart.%n", player.id);
+        if (onRestartVoteCallback != null) onRestartVoteCallback.run();
+    }
+
     public synchronized boolean[]    getReadyState()  { return readyState.clone(); }
     public synchronized boolean[]    getVoteState()   { return voteState.clone(); }
+    public synchronized boolean[]    getRestartVoteState() { return restartVoteState.clone(); }
     public synchronized Set<Integer> getGamePlayers() { return new LinkedHashSet<>(gamePlayers); }
 
     public synchronized void resetReadyState() {
         Arrays.fill(readyState, false);
         Arrays.fill(voteState,  false);
+        Arrays.fill(restartVoteState, false);
         gamePlayers.clear();
     }
 
@@ -433,6 +451,50 @@ public class GameLogic {
         System.out.println("[GameLogic] Game active, waiting for round start signal.");
     }
 
+    /**
+     * Full reset for a new game — clears all scores, items, zones, beams,
+     * ready/vote state, and round timer. Call this when returning to lobby.
+     * Connected players are kept so the lobby can re-show them immediately.
+     */
+    public synchronized void resetGame() {
+        // Reset round lifecycle
+        gameActive    = false;
+        roundStarted  = false;
+        roundEndTimeMs = System.currentTimeMillis() + roundDurationSeconds * 1000L;
+
+        // Reset all player state but keep them connected
+        for (Player p : players.values()) {
+            if (!p.connected) continue;
+            int[] pos = SPAWN_POINTS[spawnIndex++ % SPAWN_POINTS.length];
+            p.x = pos[0]; p.y = pos[1];
+            p.hp = 100; p.score = 0;
+            p.killed = false; p.frozen = false;
+            p.frozenTicksLeft = 0; p.hasWeapon = false;
+            p.hasShield = false; p.speedBoost = false;
+            p.speedBoostTicksLeft = 0; p.respawnTicksLeft = 0;
+            p.dashCooldownTicks = 0; p.lastDx = 0; p.lastDy = 0;
+        }
+
+        // Clear world state
+        items.clear();
+        beams.clear();
+        itemIdCounter = 0;
+        spawnIndex    = 0;
+
+        // Reset zones
+        for (Zone zone : zones) {
+            zone.state           = Zone.State.UNCLAIMED;
+            zone.ownerId         = -1;
+            zone.capturingId     = -1;
+            zone.captureProgress = 0;
+            zone.graceTicksLeft  = Zone.GRACE_TICKS;
+        }
+
+        // Reset lobby state
+        resetReadyState();
+        System.out.println("[GameLogic] Game fully reset — ready for new lobby.");
+    }
+
     public synchronized void startRound() {
         if (roundStarted) return;
         roundStarted   = true;
@@ -458,4 +520,30 @@ public class GameLogic {
     public List<Item>           getItems()   { return items;   }
     public List<Beam>           getBeams()   { return beams;   }
     public boolean              isActive()   { return gameActive; }
+
+    // ── Restart vote timeout ──────────────────────────────────────────────────
+
+    /**
+     * Called when the restart vote timeout (15 seconds) expires.
+     * Checks if all connected players voted to restart.
+     * If yes, triggers onAllRestartCallback. If no, triggers onRestartDeclinedCallback.
+     */
+    public synchronized void resolveRestartTimeout() {
+        boolean allRestartVoted = true;
+        for (Player p : players.values()) {
+            if (p.connected && !restartVoteState[p.id - 1]) {
+                allRestartVoted = false;
+                break;
+            }
+        }
+        if (allRestartVoted && getConnectedPlayerCount() >= 1) {
+            System.out.println("[GameLogic] Restart vote passed — all players agreed.");
+            if (onAllRestartCallback != null) onAllRestartCallback.run();
+            Arrays.fill(restartVoteState, false); // Reset for next round
+        } else {
+            System.out.println("[GameLogic] Restart vote declined — returning to lobby.");
+            if (onRestartDeclinedCallback != null) onRestartDeclinedCallback.run();
+            Arrays.fill(restartVoteState, false); // Reset for next round
+        }
+    }
 }

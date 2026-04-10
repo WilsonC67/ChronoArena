@@ -71,6 +71,9 @@ public class ClientHandler implements Runnable {
                 gameLogic.setOnReadyCallback(this::broadcastReadyUpdate);
                 gameLogic.setOnVoteCallback(this::broadcastVoteUpdate);
                 gameLogic.setOnAllReadyCallback(this::broadcastCountdownStart);
+                gameLogic.setOnRestartVoteCallback(this::broadcastRestartVoteUpdate);
+                gameLogic.setOnAllRestartCallback(this::broadcastRestartResult_Yes);
+                gameLogic.setOnRestartDeclinedCallback(this::broadcastRestartResult_No);
                 sendTextLine("WELCOME " + assignedPlayerId);
                 System.out.printf("[ClientHandler] Player %d joined from %s%n",
                         assignedPlayerId, socket.getRemoteSocketAddress());
@@ -87,7 +90,7 @@ public class ClientHandler implements Runnable {
             // Then add to lobby list and broadcast — client is now in streamFrames()
             if (assignedPlayerId > 0) {
                 allClients.add(this);
-                try { Thread.sleep(200); } catch (InterruptedException ignored) {}
+                try { Thread.sleep(200); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
                 broadcastLobbyUpdate();
             }
 
@@ -180,6 +183,40 @@ public class ClientHandler implements Runnable {
         synchronized (allClients) {
             for (ClientHandler h : allClients) h.sendTextMessage("COUNTDOWN_START");
         }
+    }
+
+    /** Broadcasts current restart vote tally to all clients as RESTART_VOTE_UPDATE,votes,total */
+    public void broadcastRestartVoteUpdate() {
+        boolean[] votes = gameLogic.getRestartVoteState();
+        synchronized (allClients) {
+            int voteCount = 0;
+            int total = allClients.size();
+            for (boolean v : votes) if (v) voteCount++;
+            String msg = "RESTART_VOTE_UPDATE," + voteCount + "," + total;
+            for (ClientHandler h : allClients) h.sendTextMessage(msg);
+        }
+    }
+
+    /** Tells all clients the restart vote passed — everyone agreed. */
+    public void broadcastRestartResult_Yes() {
+        synchronized (allClients) {
+            for (ClientHandler h : allClients) h.sendTextMessage("RESTART_RESULT,yes");
+        }
+        gameLogic.resetGame();
+        gameLogic.startGame();
+        broadcastLobbyUpdate();
+        System.out.println("[ClientHandler] Game reset — returning all players to lobby (restart).");
+    }
+
+    /** Tells all clients the restart vote failed — return to lobby. */
+    public void broadcastRestartResult_No() {
+        synchronized (allClients) {
+            for (ClientHandler h : allClients) h.sendTextMessage("RESTART_RESULT,no");
+        }
+        gameLogic.resetGame();
+        gameLogic.startGame();
+        broadcastLobbyUpdate();
+        System.out.println("[ClientHandler] Game reset — returning all players to lobby (declined).");
     }
 
     /** Builds the current connected-player array and pushes it to all clients. */
