@@ -49,7 +49,7 @@ public class GameLogic {
     private Runnable onTimerChangeCallback;    // fires when round duration is changed
     private Runnable onZoneRotationCallback;   // fires when zones are regenerated
 
-    private static final int ZONE_ROTATION_TICKS = 600; // 30 seconds at 20 ticks/sec
+    public static final int ZONE_ROTATION_TICKS = 600; // 30 seconds at 20 ticks/sec
 
     public GameLogic(int roundDurationSeconds) {
         this.zones                = Zone.createRandomVariedZones();

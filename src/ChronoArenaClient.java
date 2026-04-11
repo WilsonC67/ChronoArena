@@ -161,9 +161,11 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
                 label = "";
                 pct   = 0.0;
             }
-            final String lbl = label;
-            final double p   = pct;
-            SwingUtilities.invokeLater(() -> actionbar.updateZone(zoneIndex, lbl, p));
+            final String lbl      = label;
+            final double p        = pct;
+            final String rawState = state;
+            final int    rawProg  = progress;
+            SwingUtilities.invokeLater(() -> actionbar.updateZone(zoneIndex, lbl, p, rawState, rawProg));
         });
         Dimension dp = displayPanel.getPreferredSize();
 
@@ -189,6 +191,8 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
                 sendUDP(getEffectivePlayerId() + "," + UDP_PORT + ",TIMER_CHANGE,0.0,0.0,," + udpSeq++));
         displayPanel.setTimerUpdateCallback(seconds ->
                 SwingUtilities.invokeLater(() -> lobbyPanel.updateTimerDisplay(seconds)));
+        displayPanel.setZoneRotationTicksCallback(ticksLeft ->
+                actionbar.updateRotationTimer(ticksLeft));
         center.add(displayPanel,  JLayeredPane.DEFAULT_LAYER);
         center.add(gameOverPanel, JLayeredPane.PALETTE_LAYER);
         center.add(lobbyPanel,    JLayeredPane.MODAL_LAYER);
