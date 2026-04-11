@@ -161,9 +161,11 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
                 label = "";
                 pct   = 0.0;
             }
-            final String lbl = label;
-            final double p   = pct;
-            SwingUtilities.invokeLater(() -> actionbar.updateZone(zoneIndex, lbl, p));
+            final String lbl      = label;
+            final double p        = pct;
+            final String rawState = state;
+            final int    rawProg  = progress;
+            SwingUtilities.invokeLater(() -> actionbar.updateZone(zoneIndex, lbl, p, rawState, rawProg));
         });
         Dimension dp = displayPanel.getPreferredSize();
 
