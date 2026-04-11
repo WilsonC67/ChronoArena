@@ -46,6 +46,7 @@ public class GameLogic {
     private Runnable onRestartVoteCallback;    // fires whenever a player votes to restart
     private Runnable onAllRestartCallback;     // fires when all players vote to restart
     private Runnable onRestartDeclinedCallback; // fires when restart vote fails
+    private Runnable onTimerChangeCallback;    // fires when round duration is changed
 
     public GameLogic(int roundDurationSeconds) {
         this.zones                = Zone.createDefaultZones();
@@ -60,13 +61,14 @@ public class GameLogic {
     public void setOnRestartVoteCallback(Runnable cb)    { this.onRestartVoteCallback    = cb; }
     public void setOnAllRestartCallback(Runnable cb)     { this.onAllRestartCallback    = cb; }
     public void setOnRestartDeclinedCallback(Runnable cb) { this.onRestartDeclinedCallback = cb; }
+    public void setOnTimerChangeCallback(Runnable cb)    { this.onTimerChangeCallback    = cb; }
 
     // ── Game loop tick ────────────────────────────────────────────────────────
 
     public synchronized void processTick(int tick, List<PlayerAction> actions) {
         for (PlayerAction pa : actions) {
             // READY and VOTE_START are lobby actions — process them even before game starts
-            if (pa.action.equals("READY") || pa.action.equals("VOTE_START")) {
+            if (pa.action.equals("READY") || pa.action.equals("VOTE_START") || pa.action.equals("TIMER_CHANGE")) {
                 if (!players.containsKey(pa.playerId))
                     addPlayer(pa.playerId, "Player " + pa.playerId);
                 Player player = players.get(pa.playerId);
@@ -144,6 +146,7 @@ public class GameLogic {
             case "READY":          handleReady(player); break;
             case "VOTE_START":     handleVote(player); break;
             case "RESTART_VOTE":   handleRestartVote(player); break;
+            case "TIMER_CHANGE":   handleTimerChange(); break;
             default: break;
         }
         if (gameActive) checkItemCollection(player);
@@ -184,6 +187,25 @@ public class GameLogic {
         System.out.printf("[GameLogic] Player %d voted to restart.%n", player.id);
         if (onRestartVoteCallback != null) onRestartVoteCallback.run();
     }
+
+    /** Cycles round duration: 120 → 180 → 240 → 300 → 120 (2→3→4→5→2 minutes). */
+    private void handleTimerChange() {
+        if (roundStarted) return; // lock once game is live
+        int[] steps = {120, 180, 240, 300};
+        int next = steps[0];
+        for (int i = 0; i < steps.length; i++) {
+            if (roundDurationSeconds == steps[i]) {
+                next = steps[(i + 1) % steps.length];
+                break;
+            }
+        }
+        roundDurationSeconds = next;
+        System.out.printf("[GameLogic] Round duration changed to %d seconds (%d min).%n",
+                roundDurationSeconds, roundDurationSeconds / 60);
+        if (onTimerChangeCallback != null) onTimerChangeCallback.run();
+    }
+
+    public synchronized int getRoundDurationSeconds() { return roundDurationSeconds; }
 
     public synchronized boolean[]    getReadyState()  { return readyState.clone(); }
     public synchronized boolean[]    getVoteState()   { return voteState.clone(); }

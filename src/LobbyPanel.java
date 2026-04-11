@@ -1,5 +1,5 @@
-import javax.swing.*;
 import java.awt.*;
+import javax.swing.*;
 
 // overlays the map before the game starts
 public class LobbyPanel extends JPanel {
@@ -13,12 +13,14 @@ public class LobbyPanel extends JPanel {
     private final JLabel     countdownLabel;
     private final JButton    startButton;  // hidden — kept for layout compat, not shown
     private final JButton    voteButton;   // each player's personal vote-to-start
+    private final JButton    timerButton;  // cycles round duration 2→3→4→5→2 min
     private final boolean[]  playerConnected = new boolean[4];
     private final boolean[]  playerReady     = new boolean[4];
 
     private int      localPlayerId    = -1;
     private Runnable readyUDPCallback;
     private Runnable voteUDPCallback;
+    private Runnable timerChangeCallback;
     private int      voteCount        = 0;
     private int      totalCount       = 0;
     private boolean  localVoted       = false;
@@ -117,6 +119,18 @@ public class LobbyPanel extends JPanel {
         voteButton.addActionListener(e -> onVoteClicked());
         add(voteButton);
 
+        // timer button — any player can click to cycle round duration
+        timerButton = new JButton("\u23f1  2:00");
+        timerButton.setFont(new Font("SansSerif", Font.BOLD, 14));
+        timerButton.setForeground(COL_GOLD);
+        timerButton.setBackground(new Color(40, 35, 10));
+        timerButton.setFocusPainted(false);
+        timerButton.setBorder(BorderFactory.createLineBorder(new Color(160, 120, 20), 1));
+        timerButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        timerButton.setToolTipText("Click to cycle round duration: 2 \u2192 3 \u2192 4 \u2192 5 \u2192 2 min");
+        timerButton.addActionListener(e -> onTimerClicked());
+        add(timerButton);
+
         // countdown label
         countdownLabel = new JLabel("", SwingConstants.CENTER);
         countdownLabel.setFont(new Font("SansSerif", Font.BOLD, 36));
@@ -149,10 +163,12 @@ public class LobbyPanel extends JPanel {
 
         final int START_W = 250, START_H = 44;
         final int VOTE_W  = 220, VOTE_H  = 44;
+        final int TIMER_W = 120, TIMER_H = 30;
         statusLabel   .setBounds(0,              400, W,       24);
         startButton   .setBounds(-9999, -9999, 0, 0); // hidden — server controls start
         voteButton    .setBounds((W-VOTE_W)/2,   432, VOTE_W,  VOTE_H);
-        countdownLabel.setBounds(0,              486, W,       50);
+        timerButton   .setBounds((W-TIMER_W)/2,  486, TIMER_W, TIMER_H);
+        countdownLabel.setBounds(0,              526, W,       50);
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -171,6 +187,17 @@ public class LobbyPanel extends JPanel {
     /** Wire to sendUDP so clicking VOTE TO START fires the network message. */
     public void setVoteUDPCallback(Runnable callback) {
         this.voteUDPCallback = callback;
+    }
+
+    /** Wire to sendUDP so clicking the timer button fires the network message. */
+    public void setTimerChangeCallback(Runnable callback) {
+        this.timerChangeCallback = callback;
+    }
+
+    /** Called when the server broadcasts a new round duration — updates the button label. */
+    public void updateTimerDisplay(int seconds) {
+        SwingUtilities.invokeLater(() ->
+                timerButton.setText("\u23f1  " + (seconds / 60) + ":00"));
     }
 
     /** Called by the server (via COUNTDOWN_START) — starts countdown on ALL clients. */
@@ -240,6 +267,9 @@ public class LobbyPanel extends JPanel {
             voteButton.setEnabled(true);
             voteButton.setVisible(false);
 
+            // Reset timer button
+            timerButton.setText("\u23f1  2:00");
+
             // Reset countdown
             stopCountdown();
             countdownLabel.setText("");
@@ -266,6 +296,10 @@ public class LobbyPanel extends JPanel {
         voteButton.setEnabled(false);
         voteButton.setText("Voted! Waiting...");
         if (voteUDPCallback != null) voteUDPCallback.run();
+    }
+
+    private void onTimerClicked() {
+        if (timerChangeCallback != null) timerChangeCallback.run();
     }
 
     private void onReadyClicked(int slot) {
