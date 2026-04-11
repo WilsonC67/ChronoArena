@@ -115,22 +115,33 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
             String itemType = hasWeapon ? "GUN" : hasShield ? "SHIELD" : "NONE";
             int localId = getEffectivePlayerId();
             if (localId > 0 && id == localId) {
-                // Clear respawn message when player respawns and appears in PLAYER_UPDATE
-                if (isCurrentlyRespawning) {
+                // Receiving a PLAYER_UPDATE with hp>0 means we are alive/respawned
+                if (isCurrentlyRespawning && hp > 0) {
                     isCurrentlyRespawning = false;
                     SwingUtilities.invokeLater(() -> hud.clearRespawnMessage());
                 }
-                // pass score as 2nd argument — added in SidebarPanel update
                 sidebar.updateSelfCard("Player " + id, score, hp, frozen, hasWeapon, hasShield, speedBoost, itemType);
             } else {
-                // SidebarPanel now handles the id→slot mapping internally
-                sidebar.updateOtherPlayer(id, "Player " + id, score, frozen, speedBoost, itemType);
+                sidebar.updateOtherPlayer(id, "Player " + id, score, hp, frozen, speedBoost, itemType);
             }
         });
         displayPanel.setRespawnCountdownCallback((playerId, secondsLeft) -> {
             if (playerId == getEffectivePlayerId()) {
-                isCurrentlyRespawning = true;
-                SwingUtilities.invokeLater(() -> hud.showRespawnCountdown(secondsLeft));
+                if (secondsLeft > 0) {
+                    isCurrentlyRespawning = true;
+                    sidebar.forceSelfDead();
+                    SwingUtilities.invokeLater(() -> hud.showRespawnCountdown(secondsLeft));
+                } else {
+                    isCurrentlyRespawning = false;
+                    SwingUtilities.invokeLater(() -> hud.clearRespawnMessage());
+                }
+            } else {
+                // For other players: snap HP to 0 while counting down, full on respawn
+                if (secondsLeft > 0) {
+                    sidebar.forceOtherPlayerDead(playerId);
+                } else {
+                    sidebar.onOtherPlayerRespawn(playerId);
+                }
             }
         });
         displayPanel.setZoneCallback((zoneIndex, state, ownerId, progress) -> {

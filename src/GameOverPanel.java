@@ -113,11 +113,31 @@ public class GameOverPanel extends JPanel {
             scoreLabels[i].setText(scores[i] + " pts");
         }
 
-        int winnerIdx = 0;
+        int maxScore = scores[0];
         for (int i = 1; i < scores.length; i++) {
-            if (scores[i] > scores[winnerIdx]) winnerIdx = i;
+            if (scores[i] > maxScore) maxScore = scores[i];
         }
-        winnerLabel.setText("\uD83C\uDFC6  PLAYER " + (winnerIdx + 1) + " WINS!");
+
+        // Find all players with the max score
+        java.util.List<Integer> winners = new java.util.ArrayList<>();
+        for (int i = 0; i < scores.length; i++) {
+            if (scores[i] == maxScore) winners.add(i);
+        }
+
+        // Display tie or single winner
+        if (winners.size() > 1) {
+            StringBuilder tieMsg = new StringBuilder("PLAYERS ");
+            for (int j = 0; j < winners.size(); j++) {
+                tieMsg.append(winners.get(j) + 1);
+                if (j < winners.size() - 2) tieMsg.append(", ");
+                else if (j == winners.size() - 2) tieMsg.append(" AND ");
+            }
+            tieMsg.append(" TIED!");
+            winnerLabel.setText(tieMsg.toString());
+        } else {
+            int winnerIdx = winners.get(0);
+            winnerLabel.setText("\uD83C\uDFC6  PLAYER " + (winnerIdx + 1) + " WINS!");
+        }
 
         setVisible(true);
         repaint();
