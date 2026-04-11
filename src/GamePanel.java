@@ -545,6 +545,14 @@ public class GamePanel extends JPanel implements Runnable {
             sb.append(",").append(zone.ownerId);
             sb.append(",").append(zone.captureProgress);
         }
+        // Append ticks remaining until the next zone rotation.
+        // rotateZones() fires when tick % ZONE_ROTATION_TICKS == 0, so the distance
+        // to the next multiple is ZONE_ROTATION_TICKS - (tick % ZONE_ROTATION_TICKS),
+        // clamped to ZONE_ROTATION_TICKS itself when we're exactly on a boundary.
+        int ticksUntilRotation = GameLogic.ZONE_ROTATION_TICKS
+                - (tick % GameLogic.ZONE_ROTATION_TICKS);
+        if (ticksUntilRotation == 0) ticksUntilRotation = GameLogic.ZONE_ROTATION_TICKS;
+        sb.append(",").append(ticksUntilRotation);
         for (ClientHandler client : clients) client.sendTextMessage(sb.toString());
     }
 

@@ -20,6 +20,12 @@ public class ActionbarPanel extends JPanel {
     private final JLabel nextChangeTimerLabel;
     private final JLabel nextChangeZoneLabel;
 
+    // ── Zone rotation timer (further right) ───────────────────────────────────
+    private static final int ROTATION_AREA_W = 150;
+
+    private final JLabel rotationHeaderLabel;
+    private final JLabel rotationTimerLabel;
+
     // Track the most recent progress per zone so we can recompute each update
     private final int[]    zoneProgress = new int[3];
     private final String[] zoneStates   = new String[3];
@@ -63,6 +69,15 @@ public class ActionbarPanel extends JPanel {
         nextChangeZoneLabel = Style.makeLabel("", Style.FONT_XS,
                 Style.TEXT_MUTED, SwingConstants.CENTER);
         add(nextChangeZoneLabel);
+
+        // ── Zone rotation timer block ──────────────────────────────────────────
+        rotationHeaderLabel = Style.makeLabel("ZONE SHUFFLE", Style.FONT_XS,
+                new Color(150, 155, 170), SwingConstants.CENTER);
+        add(rotationHeaderLabel);
+
+        rotationTimerLabel = Style.makeLabel("--:--", Style.FONT_LARGE,
+                new Color(180, 120, 255), SwingConstants.CENTER);
+        add(rotationTimerLabel);
     }
 
     // ── doLayout — runs every resize ──────────────────────────────────────────
@@ -83,10 +98,15 @@ public class ActionbarPanel extends JPanel {
         }
 
         // Timer block pinned to the right edge with a small margin
-        int tx = W - TIMER_AREA_W - 16;
+        int tx = W - TIMER_AREA_W - ROTATION_AREA_W - 32;
         nextChangeHeaderLabel.setBounds(tx, 2,  TIMER_AREA_W, 13);
         nextChangeTimerLabel .setBounds(tx, 14, TIMER_AREA_W, 22);
         nextChangeZoneLabel  .setBounds(tx, 36, TIMER_AREA_W, 13);
+
+        // Rotation block immediately to the right of the capture timer
+        int rx = W - ROTATION_AREA_W - 16;
+        rotationHeaderLabel.setBounds(rx, 2,  ROTATION_AREA_W, 13);
+        rotationTimerLabel .setBounds(rx, 14, ROTATION_AREA_W, 22);
     }
 
     // ── Public update API ─────────────────────────────────────────────────────
@@ -194,6 +214,31 @@ public class ActionbarPanel extends JPanel {
             nextChangeTimerLabel.setForeground(col);
             nextChangeZoneLabel.setText(zStr);
             nextChangeZoneLabel.setForeground(Style.TEXT_MUTED);
+        });
+    }
+
+    /**
+     * Called by ChronoArenaClient when a ZONE_UPDATE arrives carrying the
+     * ticks-until-rotation value from the server.
+     *
+     * @param ticksLeft ticks remaining until zones are shuffled
+     *                  (server runs at 20 ticks/sec)
+     */
+    public void updateRotationTimer(int ticksLeft) {
+        final int TICKS_PER_SEC = 20;
+        int totalSecs = (int) Math.ceil((double) ticksLeft / TICKS_PER_SEC);
+        int mins = totalSecs / 60;
+        int secs = totalSecs % 60;
+        String timeStr = String.format("%02d:%02d", mins, secs);
+
+        // Purple → orange → red as the shuffle approaches
+        Color col = totalSecs > 15
+                ? new Color(180, 120, 255)
+                : (totalSecs > 5 ? new Color(255, 160, 40) : new Color(220, 60, 60));
+
+        SwingUtilities.invokeLater(() -> {
+            rotationTimerLabel.setText(timeStr);
+            rotationTimerLabel.setForeground(col);
         });
     }
 }

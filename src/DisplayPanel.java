@@ -44,6 +44,8 @@ public class DisplayPanel extends JPanel {
     private java.util.function.BiConsumer<Integer, int[]> scoreCallback;
     // optional callback fired when round duration changes (seconds)
     private java.util.function.IntConsumer timerUpdateCallback;
+    // optional callback fired with ticksUntilRotation each zone update
+    private java.util.function.IntConsumer zoneRotationTicksCallback;
     // optional callback fired with zone updates: (zoneIndex, stateName, ownerId, progress)
     private ZoneUpdateCallback zoneCallback;
     // optional callback fired with player state updates
@@ -111,9 +113,14 @@ public class DisplayPanel extends JPanel {
         this.timerUpdateCallback = cb;
     }
 
-    /** Optional — fired each second with zone state updates. */
+    /** Optional — fired each tick with zone state updates. */
     public void setZoneCallback(ZoneUpdateCallback cb) {
         this.zoneCallback = cb;
+    }
+
+    /** Optional — fired each tick with ticks remaining until the next zone rotation. */
+    public void setZoneRotationTicksCallback(java.util.function.IntConsumer cb) {
+        this.zoneRotationTicksCallback = cb;
     }
 
     /** Optional — fired each second with each player's state. */
@@ -266,6 +273,7 @@ public class DisplayPanel extends JPanel {
             }
         } else if (line.startsWith("ZONE_UPDATE,") && zoneCallback != null) {
             String[] parts = line.split(",");
+            // Format: ZONE_UPDATE, [state,ownerId,progress] x3, ticksUntilRotation
             if (parts.length >= 1 + 9) {
                 for (int z = 0; z < 3; z++) {
                     int base = 1 + z * 3;
@@ -273,6 +281,11 @@ public class DisplayPanel extends JPanel {
                     int    ownerId  = Integer.parseInt(parts[base + 1]);
                     int    progress = Integer.parseInt(parts[base + 2]);
                     zoneCallback.onZoneUpdate(z, state, ownerId, progress);
+                }
+                // Optional trailing field: ticksUntilRotation (added in latest server build)
+                if (parts.length >= 11 && zoneRotationTicksCallback != null) {
+                    int ticksLeft = Integer.parseInt(parts[10]);
+                    zoneRotationTicksCallback.accept(ticksLeft);
                 }
             }
         } else if (line.startsWith("TIMER_UPDATE,") && timerUpdateCallback != null) {
