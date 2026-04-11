@@ -42,6 +42,8 @@ public class DisplayPanel extends JPanel {
     private java.util.function.Consumer<String> restartResultCallback;
     // optional callback fired when the server sends a SCORE_UPDATE line
     private java.util.function.BiConsumer<Integer, int[]> scoreCallback;
+    // optional callback fired when round duration changes (seconds)
+    private java.util.function.IntConsumer timerUpdateCallback;
     // optional callback fired with zone updates: (zoneIndex, stateName, ownerId, progress)
     private ZoneUpdateCallback zoneCallback;
     // optional callback fired with player state updates
@@ -102,6 +104,11 @@ public class DisplayPanel extends JPanel {
     /** Optional — fired with (secondsLeft, int[4] scores) each second. */
     public void setScoreCallback(java.util.function.BiConsumer<Integer, int[]> cb) {
         this.scoreCallback = cb;
+    }
+
+    /** Optional — fired when the server changes the round duration (seconds). */
+    public void setTimerUpdateCallback(java.util.function.IntConsumer cb) {
+        this.timerUpdateCallback = cb;
     }
 
     /** Optional — fired each second with zone state updates. */
@@ -267,6 +274,12 @@ public class DisplayPanel extends JPanel {
                     int    progress = Integer.parseInt(parts[base + 2]);
                     zoneCallback.onZoneUpdate(z, state, ownerId, progress);
                 }
+            }
+        } else if (line.startsWith("TIMER_UPDATE,") && timerUpdateCallback != null) {
+            String[] parts = line.split(",");
+            if (parts.length == 2) {
+                int seconds = Integer.parseInt(parts[1]);
+                timerUpdateCallback.accept(seconds);
             }
         } else if (line.startsWith("SCORE_UPDATE,")) {
             String[] parts = line.split(",");

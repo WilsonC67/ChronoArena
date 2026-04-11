@@ -3,9 +3,7 @@
  */
 public class GameServer {
 
-    private static final int  ROUND_DURATION_SECONDS = 120;
-    private static final int  REQUIRED_PLAYERS       = 4;
-    private static final long LOBBY_COUNTDOWN_MS     = 5_600; // 5s countdown + 0.6s "GO!" display
+    private static final int  ROUND_DURATION_SECONDS = 120; // default; players can change via lobby
 
     public static void main(String[] args) {
         System.out.println("=== ChronoArena Server starting ===");
@@ -50,21 +48,8 @@ public class GameServer {
         tcpThread.start();
         System.out.println("[GameServer] TCPMonitor on TCP:" + tcpPort);
 
-        // ── Start game, then wait for all players and start round timer ───────
+        // ── Start game and wait for players to vote to start ──────────────────
         gameLogic.startGame();
-        System.out.println("[GameServer] Ready — waiting for players.");
-
-        // Watch for all players to join, then mirror the client lobby countdown
-        Thread roundStarter = new Thread(() -> {
-            System.out.println("[GameServer] Waiting for " + REQUIRED_PLAYERS + " players...");
-            while (gameLogic.getConnectedPlayerCount() < REQUIRED_PLAYERS) {
-                try { Thread.sleep(200); } catch (InterruptedException e) { return; }
-            }
-            System.out.println("[GameServer] All players connected — starting lobby countdown.");
-            try { Thread.sleep(LOBBY_COUNTDOWN_MS); } catch (InterruptedException e) { return; }
-            gameLogic.startRound();
-        }, "RoundStarter");
-        roundStarter.setDaemon(true);
-        roundStarter.start();
+        System.out.println("[GameServer] Ready — waiting for players to connect and vote.");
     }
 }

@@ -185,6 +185,10 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
                 sendUDP(getEffectivePlayerId() + "," + UDP_PORT + ",READY,0.0,0.0,," + udpSeq++));
         lobbyPanel.setVoteUDPCallback(() ->
                 sendUDP(getEffectivePlayerId() + "," + UDP_PORT + ",VOTE_START,0.0,0.0,," + udpSeq++));
+        lobbyPanel.setTimerChangeCallback(() ->
+                sendUDP(getEffectivePlayerId() + "," + UDP_PORT + ",TIMER_CHANGE,0.0,0.0,," + udpSeq++));
+        displayPanel.setTimerUpdateCallback(seconds ->
+                SwingUtilities.invokeLater(() -> lobbyPanel.updateTimerDisplay(seconds)));
         center.add(displayPanel,  JLayeredPane.DEFAULT_LAYER);
         center.add(gameOverPanel, JLayeredPane.PALETTE_LAYER);
         center.add(lobbyPanel,    JLayeredPane.MODAL_LAYER);

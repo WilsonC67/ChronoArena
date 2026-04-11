@@ -74,6 +74,7 @@ public class ClientHandler implements Runnable {
                 gameLogic.setOnRestartVoteCallback(this::broadcastRestartVoteUpdate);
                 gameLogic.setOnAllRestartCallback(this::broadcastRestartResult_Yes);
                 gameLogic.setOnRestartDeclinedCallback(this::broadcastRestartResult_No);
+                gameLogic.setOnTimerChangeCallback(this::broadcastTimerUpdate);
                 sendTextLine("WELCOME " + assignedPlayerId);
                 System.out.printf("[ClientHandler] Player %d joined from %s%n",
                         assignedPlayerId, socket.getRemoteSocketAddress());
@@ -92,6 +93,8 @@ public class ClientHandler implements Runnable {
                 allClients.add(this);
                 try { Thread.sleep(200); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
                 broadcastLobbyUpdate();
+                // Inform the newly joined client of the current round duration
+                sendTextMessage("TIMER_UPDATE," + gameLogic.getRoundDurationSeconds());
             }
 
         } catch (IOException | NumberFormatException e) {
@@ -174,6 +177,15 @@ public class ClientHandler implements Runnable {
             total = allClients.size();
             for (boolean v : votes) if (v) voteCount++;
             String msg = "VOTE_UPDATE," + voteCount + "," + total;
+            for (ClientHandler h : allClients) h.sendTextMessage(msg);
+        }
+    }
+
+    /** Broadcasts current round duration to all clients as TIMER_UPDATE,seconds */
+    public void broadcastTimerUpdate() {
+        int seconds = gameLogic.getRoundDurationSeconds();
+        String msg = "TIMER_UPDATE," + seconds;
+        synchronized (allClients) {
             for (ClientHandler h : allClients) h.sendTextMessage(msg);
         }
     }
