@@ -33,6 +33,7 @@ public class GameLogic {
     private boolean roundStarted         = false;
     private long    roundEndTimeMs;
     private int     roundDurationSeconds;
+    private int     roundStartTick = 0;  // tick when the round began
     private ServerUDPQueue packetQueue;
 
     // ── Ready / vote-to-start state ───────────────────────────────────────────
@@ -49,7 +50,7 @@ public class GameLogic {
     private Runnable onTimerChangeCallback;    // fires when round duration is changed
     private Runnable onZoneRotationCallback;   // fires when zones are regenerated
 
-    public static final int ZONE_ROTATION_TICKS = 600; // 30 seconds at 20 ticks/sec
+    public static final int ZONE_ROTATION_TICKS = 400; // 20 seconds at 20 ticks/sec
 
     public GameLogic(int roundDurationSeconds) {
         this.zones                = Zone.createRandomVariedZones();
@@ -76,7 +77,7 @@ public class GameLogic {
                 if (!players.containsKey(pa.playerId))
                     addPlayer(pa.playerId, "Player " + pa.playerId);
                 Player player = players.get(pa.playerId);
-                if (player != null) handleAction(player, pa);
+                if (player != null) handleAction(player, pa, tick);
                 continue;
             }
             if (!gameActive) continue;
@@ -84,7 +85,7 @@ public class GameLogic {
                 addPlayer(pa.playerId, "Player " + pa.playerId);
             Player player = players.get(pa.playerId);
             if (player == null || !player.connected || player.killed) continue;
-            handleAction(player, pa);
+            handleAction(player, pa, tick);
         }
 
         if (!gameActive) return;
@@ -129,7 +130,8 @@ public class GameLogic {
             if (tick % currentSpawnInterval == 0) spawnItem();
         }
         if (tick % Zone.POINTS_INTERVAL  == 0) updateZoneScores();
-        if (roundStarted && tick % ZONE_ROTATION_TICKS == 0) rotateZones();
+        if (roundStarted && (tick - roundStartTick) > 0
+                && (tick - roundStartTick) % ZONE_ROTATION_TICKS == 0) rotateZones();
         beams.removeIf(beam -> --beam.ticksLeft <= 0);
 
         if (System.currentTimeMillis() >= roundEndTimeMs && roundStarted) {
@@ -140,7 +142,7 @@ public class GameLogic {
 
     // ── Action dispatch ───────────────────────────────────────────────────────
 
-    private void handleAction(Player player, PlayerAction pa) {
+    private void handleAction(Player player, PlayerAction pa, int tick) {
         switch (pa.action) {
             case "MOVE_UP":        handleMove(player,  0, -1); break;
             case "MOVE_DOWN":      handleMove(player,  0,  1); break;
@@ -149,7 +151,7 @@ public class GameLogic {
             case "SHOOT":          handleShoot(player, pa.x, pa.y); break;
             case "PICKUP_POWERUP": checkItemCollection(player); break;
             case "USE_ABILITY":    handleDash(player); break;
-            case "GAME_START":     startRound(); break;
+            case "GAME_START":     startRound(tick); break;
             case "READY":          handleReady(player); break;
             case "VOTE_START":     handleVote(player); break;
             case "RESTART_VOTE":   handleRestartVote(player); break;
@@ -614,11 +616,17 @@ public class GameLogic {
         System.out.println("[GameLogic] Game fully reset — ready for new lobby.");
     }
 
-    public synchronized void startRound() {
+    public synchronized void startRound(int currentTick) {
         if (roundStarted) return;
         roundStarted   = true;
+        roundStartTick = currentTick;
         roundEndTimeMs = System.currentTimeMillis() + roundDurationSeconds * 1000L;
-        System.out.println("[GameLogic] Round timer started!");
+        System.out.println("[GameLogic] Round timer started at tick " + currentTick + "!");
+    }
+
+    /** Backward-compatible overload — used internally when tick isn't available. */
+    public synchronized void startRound() {
+        startRound(0);
     }
 
     public long getTimeRemainingMs() {
@@ -638,7 +646,9 @@ public class GameLogic {
     public synchronized Zone[] getZones()   { return zones;   }
     public List<Item>           getItems()   { return items;   }
     public List<Beam>           getBeams()   { return beams;   }
-    public boolean              isActive()   { return gameActive; }
+    public boolean              isActive()      { return gameActive;   }
+    public boolean              isRoundStarted()  { return roundStarted;  }
+    public int                  getRoundStartTick() { return roundStartTick; }
 
     // ── Restart vote timeout ──────────────────────────────────────────────────
 
