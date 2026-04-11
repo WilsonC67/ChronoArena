@@ -30,6 +30,8 @@ public class ActionbarPanel extends JPanel {
     private final int[]    zoneProgress = new int[3];
     private final String[] zoneStates   = new String[3];
 
+    private volatile boolean gameActive = false;
+
     public ActionbarPanel(Consumer<String> onAction) {
         setLayout(null);
         setPreferredSize(new Dimension(900, 52));
@@ -161,11 +163,35 @@ public class ActionbarPanel extends JPanel {
     public void updateItemHeld(String itemType) {
     }
 
+    public void setGameActive(boolean active) {
+        // Set the flag IMMEDIATELY (synchronously) - not through SwingUtilities
+        this.gameActive = active;
+        
+        SwingUtilities.invokeLater(() -> {
+            if (active) {
+                // Game is starting - initialize timer display (will be updated by rotation timer callback)
+                rotationHeaderLabel.setText("ZONE SHUFFLE");
+                rotationTimerLabel.setText("--:--");
+                rotationTimerLabel.setForeground(Style.TEXT_MUTED);
+            } else {
+                // Game is ending - hide all timers immediately
+                rotationHeaderLabel.setText("ZONE SHUFFLE");
+                rotationTimerLabel.setText("--:--");
+                rotationTimerLabel.setForeground(Style.TEXT_MUTED);
+                nextChangeHeaderLabel.setText("NEXT CAPTURE");
+                nextChangeTimerLabel.setText("--:--");
+                nextChangeTimerLabel.setForeground(Style.TEXT_MUTED);
+                nextChangeZoneLabel.setText("");
+            }
+        });
+    }
+
     // ── Timer calculation ─────────────────────────────────────────────────────
 
     /**
-     * Finds the furthest-along CAPTURING zone and displays how many seconds
-     * remain until it completes (i.e. becomes CONTROLLED).
+     * Finds all CAPTURING zones and displays how many seconds remain until each
+     * completes (i.e. becomes CONTROLLED).
+     * If multiple zones are capturing, shows them stacked.
      * If no zone is currently capturing, shows "--:--".
      */
     private void refreshChangeTimer() {
@@ -173,20 +199,38 @@ public class ActionbarPanel extends JPanel {
         final int CAPTURE_TICKS = Zone.CAPTURE_TICKS;
         final int TICKS_PER_SEC = 20;
 
-        int   bestProgress  = -1;
-        int   bestZone      = -1;
         String[] zoneLabels = {"ZONE A", "ZONE B", "ZONE C"};
+        StringBuilder displayText = new StringBuilder();
+        int captureCount = 0;
+        int fastest = Integer.MAX_VALUE;
 
+        // Find all capturing zones
         for (int i = 0; i < 3; i++) {
-            if ("CAPTURING".equals(zoneStates[i]) && zoneProgress[i] > bestProgress) {
-                bestProgress = zoneProgress[i];
-                bestZone     = i;
+            if ("CAPTURING".equals(zoneStates[i])) {
+                captureCount++;
+                int ticksLeft = Math.max(0, CAPTURE_TICKS - zoneProgress[i]);
+                int totalSecs = (int) Math.ceil((double) ticksLeft / TICKS_PER_SEC);
+                
+                // Track the fastest capture for coloring
+                if (totalSecs < fastest) {
+                    fastest = totalSecs;
+                }
+                
+                int mins = totalSecs / 60;
+                int secs = totalSecs % 60;
+                String timeStr = String.format("%02d:%02d", mins, secs);
+                
+                if (displayText.length() > 0) {
+                    displayText.append("\n");
+                }
+                displayText.append(zoneLabels[i]).append("\n").append(timeStr);
             }
         }
 
-        if (bestZone == -1) {
+        if (captureCount == 0) {
             // No zone is being captured right now
             SwingUtilities.invokeLater(() -> {
+                nextChangeHeaderLabel.setText("NEXT CAPTURE");
                 nextChangeTimerLabel.setText("--:--");
                 nextChangeTimerLabel.setForeground(Style.TEXT_MUTED);
                 nextChangeZoneLabel.setText("");
@@ -194,37 +238,81 @@ public class ActionbarPanel extends JPanel {
             return;
         }
 
-        int ticksLeft   = Math.max(0, CAPTURE_TICKS - bestProgress);
-        int totalSecs   = (int) Math.ceil((double) ticksLeft / TICKS_PER_SEC);
-        int mins        = totalSecs / 60;
-        int secs        = totalSecs % 60;
-        String timeStr  = String.format("%02d:%02d", mins, secs);
-        String zoneStr  = zoneLabels[bestZone];
-
-        // Colour: green when >10 s, gold when ≤10 s, red when ≤5 s
-        Color timerColor = totalSecs > 10
+        // Determine color based on fastest capture time
+        Color timerColor = fastest > 10
                 ? Style.TEXT_GOLD
-                : (totalSecs > 5 ? new Color(255, 160, 40) : new Color(220, 60, 60));
-
-        final Color col    = timerColor;
-        final String tStr  = timeStr;
-        final String zStr  = zoneStr;
+                : (fastest > 5 ? new Color(255, 160, 40) : new Color(220, 60, 60));
+        
+        // Format the display text
+        final String displayStr = displayText.toString();
+        final Color col = timerColor;
+        final int capturingCount = captureCount;
+        
         SwingUtilities.invokeLater(() -> {
-            nextChangeTimerLabel.setText(tStr);
+            if (capturingCount == 1) {
+                // Single capture: zone name and time
+                String[] lines = displayStr.split("\n");
+                if (lines.length >= 2) {
+                    nextChangeHeaderLabel.setText("NEXT CAPTURE");
+                    nextChangeZoneLabel.setText(lines[0]);  // Zone name
+                    nextChangeTimerLabel.setText(lines[1]); // Time
+                } else {
+                    nextChangeHeaderLabel.setText("NEXT CAPTURE");
+                    nextChangeZoneLabel.setText("");
+                    nextChangeTimerLabel.setText(lines[0]);
+                }
+            } else {
+                // Multiple captures: show count and times compactly
+                nextChangeHeaderLabel.setText(capturingCount + " ZONES");
+                StringBuilder compactDisplay = new StringBuilder();
+                for (int i = 0; i < 3; i++) {
+                    if ("CAPTURING".equals(zoneStates[i])) {
+                        int ticksLeft = Math.max(0, CAPTURE_TICKS - zoneProgress[i]);
+                        int totalSecs = (int) Math.ceil((double) ticksLeft / TICKS_PER_SEC);
+                        int mins = totalSecs / 60;
+                        int secs = totalSecs % 60;
+                        String timeStr = String.format("%02d:%02d", mins, secs);
+                        String zone = zoneLabels[i].substring(5); // "A", "B", or "C"
+                        if (compactDisplay.length() > 0) {
+                            compactDisplay.append("  ");
+                        }
+                        compactDisplay.append(zone).append(":").append(timeStr);
+                    }
+                }
+                nextChangeTimerLabel.setText(compactDisplay.toString());
+                nextChangeZoneLabel.setText("");
+            }
             nextChangeTimerLabel.setForeground(col);
-            nextChangeZoneLabel.setText(zStr);
-            nextChangeZoneLabel.setForeground(Style.TEXT_MUTED);
         });
     }
 
     /**
      * Called by ChronoArenaClient when a ZONE_UPDATE arrives carrying the
      * ticks-until-rotation value from the server.
+     * Only updates display if the game is currently active.
      *
      * @param ticksLeft ticks remaining until zones are shuffled
      *                  (server runs at 20 ticks/sec)
      */
     public void updateRotationTimer(int ticksLeft) {
+        // Hard gate: never run outside an active game
+        if (!gameActive) {
+            SwingUtilities.invokeLater(() -> {
+                rotationTimerLabel.setText("--:--");
+                rotationTimerLabel.setForeground(Style.TEXT_MUTED);
+            });
+            return;
+        }
+
+        // Timer has expired — hide it and stop
+        if (ticksLeft <= 0) {
+            SwingUtilities.invokeLater(() -> {
+                rotationTimerLabel.setText("--:--");
+                rotationTimerLabel.setForeground(Style.TEXT_MUTED);
+            });
+            return;
+        }
+
         final int TICKS_PER_SEC = 20;
         int totalSecs = (int) Math.ceil((double) ticksLeft / TICKS_PER_SEC);
         int mins = totalSecs / 60;

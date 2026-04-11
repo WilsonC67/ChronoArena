@@ -500,7 +500,7 @@ public class GamePanel extends JPanel implements Runnable {
 
     private void broadcastScoreUpdate() {
         int secondsLeft = (int)(gameLogic.getTimeRemainingMs() / 1000);
-        // Build "SCORE_UPDATE,secondsLeft,s1,s2,s3,s4,zState,zOwner,zProgress,..."
+        // Build "SCORE_UPDATE,secondsLeft,s1,s2,s3,s4,zState,zOwner,zProgress,...,gameActive"
         StringBuilder sb = new StringBuilder("SCORE_UPDATE,").append(secondsLeft);
         java.util.Map<Integer, Player> players = gameLogic.getPlayers();
         for (int i = 1; i <= 4; i++) {
@@ -513,6 +513,8 @@ public class GamePanel extends JPanel implements Runnable {
             sb.append(",").append(zone.ownerId);
             sb.append(",").append(zone.captureProgress);
         }
+        // Append game active state (1 = active, 0 = inactive)
+        sb.append(",").append(gameLogic.isActive() ? 1 : 0);
         for (ClientHandler client : clients) client.sendTextMessage(sb.toString());
     }
 
@@ -545,14 +547,20 @@ public class GamePanel extends JPanel implements Runnable {
             sb.append(",").append(zone.ownerId);
             sb.append(",").append(zone.captureProgress);
         }
-        // Append ticks remaining until the next zone rotation.
-        // rotateZones() fires when tick % ZONE_ROTATION_TICKS == 0, so the distance
-        // to the next multiple is ZONE_ROTATION_TICKS - (tick % ZONE_ROTATION_TICKS),
-        // clamped to ZONE_ROTATION_TICKS itself when we're exactly on a boundary.
-        int ticksUntilRotation = GameLogic.ZONE_ROTATION_TICKS
-                - (tick % GameLogic.ZONE_ROTATION_TICKS);
-        if (ticksUntilRotation == 0) ticksUntilRotation = GameLogic.ZONE_ROTATION_TICKS;
+        boolean active = gameLogic.isActive();
+        // Only send a real rotation countdown once the round is actually started.
+        // Calculate relative to roundStartTick so the timer always begins from full
+        // at the start of each game, not at some arbitrary offset from server boot.
+        int ticksUntilRotation = 0;
+        if (gameLogic.isRoundStarted()) {
+            int ticksSinceStart = tick - gameLogic.getRoundStartTick();
+            int ticksIntoWindow = ticksSinceStart % GameLogic.ZONE_ROTATION_TICKS;
+            ticksUntilRotation  = GameLogic.ZONE_ROTATION_TICKS - ticksIntoWindow;
+            if (ticksUntilRotation == 0) ticksUntilRotation = GameLogic.ZONE_ROTATION_TICKS;
+        }
         sb.append(",").append(ticksUntilRotation);
+        // Append game active state (1 = active, 0 = inactive)
+        sb.append(",").append(active ? 1 : 0);
         for (ClientHandler client : clients) client.sendTextMessage(sb.toString());
     }
 

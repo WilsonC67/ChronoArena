@@ -54,6 +54,8 @@ public class DisplayPanel extends JPanel {
     private java.util.function.IntConsumer assignedIdCallback;
     // optional callback fired for respawn countdown (playerId, secondsLeft)
     private java.util.function.BiConsumer<Integer, Integer> respawnCountdownCallback;
+    // optional callback fired when game active state changes (true = active, false = inactive)
+    private java.util.function.Consumer<Boolean> gameActiveCallback;
 
     @FunctionalInterface
     public interface PlayerUpdateCallback {
@@ -136,6 +138,11 @@ public class DisplayPanel extends JPanel {
     /** Optional — fired for respawn countdown (playerId, secondsLeft). */
     public void setRespawnCountdownCallback(java.util.function.BiConsumer<Integer, Integer> cb) {
         this.respawnCountdownCallback = cb;
+    }
+
+    /** Optional — fired when game active state changes (true = active, false = inactive). */
+    public void setGameActiveCallback(java.util.function.Consumer<Boolean> cb) {
+        this.gameActiveCallback = cb;
     }
 
     // ── Connection loop ───────────────────────────────────────────────────────
@@ -273,8 +280,14 @@ public class DisplayPanel extends JPanel {
             }
         } else if (line.startsWith("ZONE_UPDATE,") && zoneCallback != null) {
             String[] parts = line.split(",");
-            // Format: ZONE_UPDATE, [state,ownerId,progress] x3, ticksUntilRotation
+            // Format: ZONE_UPDATE, [state,ownerId,progress] x3, ticksUntilRotation, gameActive
             if (parts.length >= 1 + 9) {
+                // Step 1: commit gameActive FIRST so every downstream callback sees the correct flag
+                if (parts.length >= 12 && gameActiveCallback != null) {
+                    boolean gameActive = parts[11].equals("1");
+                    gameActiveCallback.accept(gameActive);
+                }
+                // Step 2: zone state
                 for (int z = 0; z < 3; z++) {
                     int base = 1 + z * 3;
                     String state    = parts[base];
@@ -282,7 +295,7 @@ public class DisplayPanel extends JPanel {
                     int    progress = Integer.parseInt(parts[base + 2]);
                     zoneCallback.onZoneUpdate(z, state, ownerId, progress);
                 }
-                // Optional trailing field: ticksUntilRotation (added in latest server build)
+                // Step 3: rotation timer LAST — gameActive flag is already committed
                 if (parts.length >= 11 && zoneRotationTicksCallback != null) {
                     int ticksLeft = Integer.parseInt(parts[10]);
                     zoneRotationTicksCallback.accept(ticksLeft);
@@ -310,6 +323,10 @@ public class DisplayPanel extends JPanel {
                         int    progress = Integer.parseInt(parts[base + 2]);
                         zoneCallback.onZoneUpdate(z, state, ownerId, progress);
                     }
+                }
+                if (parts.length >= 16 && gameActiveCallback != null) {
+                    boolean gameActive = parts[15].equals("1");
+                    gameActiveCallback.accept(gameActive);
                 }
             }
         }

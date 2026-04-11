@@ -193,6 +193,8 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
                 SwingUtilities.invokeLater(() -> lobbyPanel.updateTimerDisplay(seconds)));
         displayPanel.setZoneRotationTicksCallback(ticksLeft ->
                 actionbar.updateRotationTimer(ticksLeft));
+        displayPanel.setGameActiveCallback(gameActive ->
+                actionbar.setGameActive(gameActive));
         center.add(displayPanel,  JLayeredPane.DEFAULT_LAYER);
         center.add(gameOverPanel, JLayeredPane.PALETTE_LAYER);
         center.add(lobbyPanel,    JLayeredPane.MODAL_LAYER);
