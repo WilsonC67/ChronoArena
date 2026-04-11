@@ -118,6 +118,52 @@ public class Zone implements Serializable {
         return zones;
     }
 
+    /**
+     * Creates 3 zones with randomised sizes (width 2–4, height 1–3) and positions.
+     * Each zone gets a distinct size so they feel meaningfully different.
+     * Sizes used: small (2×1), medium (3×2), large (4×3) — assigned randomly per round.
+     */
+    public static Zone[] createRandomVariedZones() {
+        int cols = PropertyFileReader.getColNum();
+        int rows = PropertyFileReader.getRowNum();
+
+        String[] ids   = {"zone_a", "zone_b", "zone_c"};
+        String[] names = {"ZONE A", "ZONE B", "ZONE C"};
+
+        // Three distinct sizes: small, medium, large
+        int[][] sizes = {{2, 1}, {3, 2}, {4, 3}};
+
+        // Shuffle sizes so each game has them in a random zone slot
+        java.util.Random rng = new java.util.Random();
+        for (int i = sizes.length - 1; i > 0; i--) {
+            int j = rng.nextInt(i + 1);
+            int[] tmp = sizes[i]; sizes[i] = sizes[j]; sizes[j] = tmp;
+        }
+
+        java.util.List<int[]> placed = new java.util.ArrayList<>();
+        Zone[] zones = new Zone[3];
+
+        for (int i = 0; i < 3; i++) {
+            int zW = sizes[i][0];
+            int zH = sizes[i][1];
+
+            int minCol = 1, maxCol = cols - zW - 1;
+            int minRow = 1, maxRow = rows - zH - 1;
+
+            int col = minCol, row = minRow;
+            int attempts = 0;
+            do {
+                col = minCol + rng.nextInt(Math.max(1, maxCol - minCol + 1));
+                row = minRow + rng.nextInt(Math.max(1, maxRow - minRow + 1));
+                attempts++;
+            } while (overlapsAny(col, row, zW, zH, placed) && attempts < 300);
+
+            placed.add(new int[]{col, row, zW, zH});
+            zones[i] = new Zone(ids[i], names[i], col, row, zW, zH);
+        }
+        return zones;
+    }
+
     // returns true if the zone (col, row, w, h) overlaps
     private static boolean overlapsAny(int col, int row, int w, int h, java.util.List<int[]> placed) {
         int gap = 1; // minimum tile gap between zones

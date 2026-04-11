@@ -77,7 +77,10 @@ public class GamePanel extends JPanel implements Runnable {
 
     public void setPacketQueue(ServerUDPQueue pq)    { this.packetQueue    = pq; }
     public void setPlayerListener(PlayerListener pl) { this.playerListener = pl; }
-    public void setGameLogic(GameLogic gl)           { this.gameLogic      = gl; }
+    public void setGameLogic(GameLogic gl)           {
+        this.gameLogic = gl;
+        gl.setOnZoneRotationCallback(this::broadcastZoneLayout);
+    }
 
     public void addClient(ClientHandler c)    { clients.add(c); }
     public void removeClient(ClientHandler c) { clients.remove(c); }
@@ -543,6 +546,26 @@ public class GamePanel extends JPanel implements Runnable {
             sb.append(",").append(zone.captureProgress);
         }
         for (ClientHandler client : clients) client.sendTextMessage(sb.toString());
+    }
+
+    /**
+     * Broadcasts the new zone geometry after a rotation.
+     * Format: ZONE_LAYOUT,col,row,w,h,col,row,w,h,col,row,w,h
+     * Clients use this to update their ActionbarPanel zone names/sizes.
+     * The renderer reads from GameLogic directly so no extra wiring is needed there.
+     */
+    private void broadcastZoneLayout() {
+        Zone[] zones = gameLogic.getZones();
+        StringBuilder sb = new StringBuilder("ZONE_LAYOUT");
+        for (Zone zone : zones) {
+            sb.append(",").append(zone.col);
+            sb.append(",").append(zone.row);
+            sb.append(",").append(zone.width);
+            sb.append(",").append(zone.height);
+        }
+        String msg = sb.toString();
+        for (ClientHandler client : clients) client.sendTextMessage(msg);
+        System.out.println("[GamePanel] Zone layout broadcast: " + msg);
     }
 
     private void broadcastDeathMessages() {

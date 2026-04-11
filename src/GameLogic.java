@@ -22,7 +22,7 @@ public class GameLogic {
     private static final int[][] SPAWN_POINTS       = {{1,1},{13,1},{1,10},{13,10}};
 
     private final Map<Integer, Player> players = new ConcurrentHashMap<>();
-    private final Zone[]               zones;
+    private Zone[]               zones;
     private final List<Item>           items   = new ArrayList<>();
     private final List<Beam>           beams   = new ArrayList<>();
     private final Random               random  = new Random();
@@ -47,9 +47,12 @@ public class GameLogic {
     private Runnable onAllRestartCallback;     // fires when all players vote to restart
     private Runnable onRestartDeclinedCallback; // fires when restart vote fails
     private Runnable onTimerChangeCallback;    // fires when round duration is changed
+    private Runnable onZoneRotationCallback;   // fires when zones are regenerated
+
+    private static final int ZONE_ROTATION_TICKS = 600; // 30 seconds at 20 ticks/sec
 
     public GameLogic(int roundDurationSeconds) {
-        this.zones                = Zone.createDefaultZones();
+        this.zones                = Zone.createRandomVariedZones();
         this.roundDurationSeconds = roundDurationSeconds;
         this.roundEndTimeMs       = System.currentTimeMillis() + roundDurationSeconds * 1000L;
     }
@@ -62,6 +65,7 @@ public class GameLogic {
     public void setOnAllRestartCallback(Runnable cb)     { this.onAllRestartCallback    = cb; }
     public void setOnRestartDeclinedCallback(Runnable cb) { this.onRestartDeclinedCallback = cb; }
     public void setOnTimerChangeCallback(Runnable cb)    { this.onTimerChangeCallback    = cb; }
+    public void setOnZoneRotationCallback(Runnable cb)   { this.onZoneRotationCallback   = cb; }
 
     // ── Game loop tick ────────────────────────────────────────────────────────
 
@@ -114,15 +118,18 @@ public class GameLogic {
 
         updateZones();
 
-        for (Item item : items) {
-            if (item.active && --item.ticksLeft <= 0) {
-                item.active = false;
-                System.out.printf("[GameLogic] Item %s despawned%n", item.id);
+        if (roundStarted) {
+            for (Item item : items) {
+                if (item.active && --item.ticksLeft <= 0) {
+                    item.active = false;
+                    System.out.printf("[GameLogic] Item %s despawned%n", item.id);
+                }
             }
+            int currentSpawnInterval = calculateDynamicSpawnInterval();
+            if (tick % currentSpawnInterval == 0) spawnItem();
         }
-        int currentSpawnInterval = calculateDynamicSpawnInterval();
-        if (tick % currentSpawnInterval == 0) spawnItem();
         if (tick % Zone.POINTS_INTERVAL  == 0) updateZoneScores();
+        if (roundStarted && tick % ZONE_ROTATION_TICKS == 0) rotateZones();
         beams.removeIf(beam -> --beam.ticksLeft <= 0);
 
         if (System.currentTimeMillis() >= roundEndTimeMs && roundStarted) {
@@ -477,6 +484,18 @@ public class GameLogic {
         }
     }
 
+    /**
+     * Replaces the 3 zones with newly randomised ones of varying size (2×1 to 4×3).
+     * Ownership and capture progress are wiped — all zones restart as UNCLAIMED.
+     * Fires onZoneRotationCallback so GamePanel can broadcast the new layout.
+     */
+    private synchronized void rotateZones() {
+        zones = Zone.createRandomVariedZones();
+        System.out.println("[GameLogic] Zones rotated — new layout: "
+                + zones[0] + ", " + zones[1] + ", " + zones[2]);
+        if (onZoneRotationCallback != null) onZoneRotationCallback.run();
+    }
+
     // ── Player management ─────────────────────────────────────────────────────
 
     public synchronized void addPlayer(int playerId, String name) {
@@ -581,6 +600,7 @@ public class GameLogic {
         spawnIndex    = 0;
 
         // Reset zones
+        zones = Zone.createRandomVariedZones();
         for (Zone zone : zones) {
             zone.state           = Zone.State.UNCLAIMED;
             zone.ownerId         = -1;
@@ -615,7 +635,7 @@ public class GameLogic {
     }
 
     public Map<Integer, Player> getPlayers() { return players; }
-    public Zone[]               getZones()   { return zones;   }
+    public synchronized Zone[] getZones()   { return zones;   }
     public List<Item>           getItems()   { return items;   }
     public List<Beam>           getBeams()   { return beams;   }
     public boolean              isActive()   { return gameActive; }
