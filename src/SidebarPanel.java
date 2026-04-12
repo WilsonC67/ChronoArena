@@ -1,6 +1,6 @@
-import javax.swing.*;
 import java.awt.*;
 import java.util.function.BooleanSupplier;
+import javax.swing.*;
 
 public class SidebarPanel extends JPanel {
 
@@ -252,7 +252,7 @@ public class SidebarPanel extends JPanel {
 
         SwingUtilities.invokeLater(() -> {
             otherNameLabels[index].setText(name);
-            otherScoreLabels[index].setText(score + " pts");
+            otherScoreLabels[index].setText(score + "pts");
             Style.applyStatusStyle(otherStatusLabels[index], frozen, speedBoost);
             Style.applyItemStyle(otherItemLabels[index], itemType);
 

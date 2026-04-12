@@ -585,12 +585,15 @@ public class GameLogic {
         roundStarted  = false;
         roundEndTimeMs = System.currentTimeMillis() + roundDurationSeconds * 1000L;
 
-        // Reset all player state but keep them connected
+        // Reset all player state but keep them connected.
+        // Also revive killed players (kill switch sets connected=false AND killed=true)
+        // so they can participate in the next round without a server restart.
         for (Player p : players.values()) {
-            if (!p.connected) continue;
+            if (!p.connected && !p.killed) continue; // skip truly-disconnected players
             int[] pos = SPAWN_POINTS[spawnIndex++ % SPAWN_POINTS.length];
             p.x = pos[0]; p.y = pos[1];
             p.hp = 100; p.score = 0;
+            p.connected = true; // revive kill-switched players
             p.killed = false; p.frozen = false;
             p.frozenTicksLeft = 0; p.hasWeapon = false;
             p.hasShield = false; p.speedBoost = false;
