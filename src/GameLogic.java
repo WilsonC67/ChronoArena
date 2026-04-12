@@ -49,6 +49,7 @@ public class GameLogic {
     private Runnable onRestartDeclinedCallback; // fires when restart vote fails
     private Runnable onTimerChangeCallback;    // fires when round duration is changed
     private Runnable onZoneRotationCallback;   // fires when zones are regenerated
+    private java.util.function.IntConsumer onPlayerKilledCallback; // fires with playerId when kill switch is used
 
     public static final int ZONE_ROTATION_TICKS = 400; // 20 seconds at 20 ticks/sec
 
@@ -67,6 +68,7 @@ public class GameLogic {
     public void setOnRestartDeclinedCallback(Runnable cb) { this.onRestartDeclinedCallback = cb; }
     public void setOnTimerChangeCallback(Runnable cb)    { this.onTimerChangeCallback    = cb; }
     public void setOnZoneRotationCallback(Runnable cb)   { this.onZoneRotationCallback   = cb; }
+    public void setOnPlayerKilledCallback(java.util.function.IntConsumer cb) { this.onPlayerKilledCallback = cb; }
 
     // ── Game loop tick ────────────────────────────────────────────────────────
 
@@ -549,6 +551,7 @@ public class GameLogic {
         p.connected = false; p.killed = true;
         releaseZones(playerId);
         System.out.printf("[GameLogic] KILL_SWITCH: Player %d removed.%n", playerId);
+        if (onPlayerKilledCallback != null) onPlayerKilledCallback.accept(playerId);
     }
 
     private void releaseZones(int playerId) {

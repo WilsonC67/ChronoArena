@@ -54,6 +54,8 @@ public class DisplayPanel extends JPanel {
     private java.util.function.IntConsumer assignedIdCallback;
     // optional callback fired for respawn countdown (playerId, secondsLeft)
     private java.util.function.BiConsumer<Integer, Integer> respawnCountdownCallback;
+    // optional callback fired when a player is forcibly removed via the server kill switch
+    private java.util.function.IntConsumer playerKilledCallback;
     // optional callback fired when game active state changes (true = active, false = inactive)
     private java.util.function.Consumer<Boolean> gameActiveCallback;
 
@@ -138,6 +140,11 @@ public class DisplayPanel extends JPanel {
     /** Optional — fired for respawn countdown (playerId, secondsLeft). */
     public void setRespawnCountdownCallback(java.util.function.BiConsumer<Integer, Integer> cb) {
         this.respawnCountdownCallback = cb;
+    }
+
+    /** Optional — fired with the playerId when the server kill switch removes a player. */
+    public void setPlayerKilledCallback(java.util.function.IntConsumer cb) {
+        this.playerKilledCallback = cb;
     }
 
     /** Optional — fired when game active state changes (true = active, false = inactive). */
@@ -262,6 +269,12 @@ public class DisplayPanel extends JPanel {
                 int playerId = Integer.parseInt(parts[1]);
                 int secondsLeft = Integer.parseInt(parts[2]);
                 respawnCountdownCallback.accept(playerId, secondsLeft);
+            }
+        } else if (line.startsWith("PLAYER_KILLED,") && playerKilledCallback != null) {
+            String[] parts = line.split(",");
+            if (parts.length == 2) {
+                int playerId = Integer.parseInt(parts[1]);
+                playerKilledCallback.accept(playerId);
             }
         } else if (line.startsWith("PLAYER_UPDATE,") && playerCallback != null) {
             String[] parts = line.split(",");

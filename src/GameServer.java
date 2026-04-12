@@ -51,5 +51,11 @@ public class GameServer {
         // ── Start game and wait for players to vote to start ──────────────────
         gameLogic.startGame();
         System.out.println("[GameServer] Ready — waiting for players to connect and vote.");
+
+        // ── Server monitor GUI ────────────────────────────────────────────────
+        // All components are wired; launch the admin window on the EDT.
+        javax.swing.SwingUtilities.invokeLater(() ->
+                new ServerMonitorPanel(gameLogic, gamePanel));
+        System.out.println("[GameServer] Server monitor GUI launched.");
     }
 }
