@@ -1,6 +1,6 @@
-import javax.swing.*;
 import java.awt.*;
 import java.util.function.BooleanSupplier;
+import javax.swing.*;
 
 public class SidebarPanel extends JPanel {
 
@@ -60,7 +60,7 @@ public class SidebarPanel extends JPanel {
         card.add(cardNameLabel);
 
         cardScoreLabel = Style.makeLabel("0", Style.FONT_XS, Style.TEXT_GOLD, SwingConstants.RIGHT);
-        cardScoreLabel.setBounds(110, 18, 28, 12);
+        cardScoreLabel.setBounds(90, 18, 48, 12);
         card.add(cardScoreLabel);
 
         JLabel hpTitle = Style.makeLabel("HP", Style.FONT_XXS_B, Style.TEXT_MUTED);
@@ -138,7 +138,7 @@ public class SidebarPanel extends JPanel {
             oCard.add(otherNameLabels[slot]);
 
             otherScoreLabels[slot] = Style.makeLabel("0 pts", Style.FONT_XS, accent, SwingConstants.RIGHT);
-            otherScoreLabels[slot].setBounds(100, 4, 38, 12);
+            otherScoreLabels[slot].setBounds(80, 4, 58, 12);
             oCard.add(otherScoreLabels[slot]);
 
             // --- Row 2: status | item ---
