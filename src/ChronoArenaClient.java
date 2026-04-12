@@ -144,6 +144,16 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
                 }
             }
         });
+        displayPanel.setPlayerKilledCallback(playerId -> {
+            // The server kill switch removed this player — snap their card to dead state
+            // immediately without waiting for the next PLAYER_UPDATE (which won't come).
+            int localId = getEffectivePlayerId();
+            if (localId > 0 && playerId == localId) {
+                sidebar.forceSelfDead();
+            } else {
+                sidebar.forceOtherPlayerDead(playerId);
+            }
+        });
         displayPanel.setZoneCallback((zoneIndex, state, ownerId, progress) -> {
             // Build display label
             String label;

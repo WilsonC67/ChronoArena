@@ -75,6 +75,7 @@ public class ClientHandler implements Runnable {
                 gameLogic.setOnAllRestartCallback(this::broadcastRestartResult_Yes);
                 gameLogic.setOnRestartDeclinedCallback(this::broadcastRestartResult_No);
                 gameLogic.setOnTimerChangeCallback(this::broadcastTimerUpdate);
+                gameLogic.setOnPlayerKilledCallback(this::broadcastPlayerKilled);
                 sendTextLine("WELCOME " + assignedPlayerId);
                 System.out.printf("[ClientHandler] Player %d joined from %s%n",
                         assignedPlayerId, socket.getRemoteSocketAddress());
@@ -179,6 +180,15 @@ public class ClientHandler implements Runnable {
             String msg = "VOTE_UPDATE," + voteCount + "," + total;
             for (ClientHandler h : allClients) h.sendTextMessage(msg);
         }
+    }
+
+    /** Tells all clients that a player was forcibly removed via the kill switch. */
+    public void broadcastPlayerKilled(int playerId) {
+        String msg = "PLAYER_KILLED," + playerId;
+        synchronized (allClients) {
+            for (ClientHandler h : allClients) h.sendTextMessage(msg);
+        }
+        System.out.printf("[ClientHandler] Broadcast PLAYER_KILLED for player %d.%n", playerId);
     }
 
     /** Broadcasts current round duration to all clients as TIMER_UPDATE,seconds */
