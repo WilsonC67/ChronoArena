@@ -78,7 +78,22 @@ public class ServerMonitorPanel extends JFrame {
         this.gameLogic = gameLogic;
         this.gamePanel = gamePanel;
 
-        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE); // server keeps running
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent e) {
+                int choice = JOptionPane.showConfirmDialog(
+                        ServerMonitorPanel.this,
+                        "Shut down the ChronoArena server?\nAll connected players will be disconnected.",
+                        "Confirm Server Shutdown",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.WARNING_MESSAGE);
+                if (choice == JOptionPane.YES_OPTION) {
+                    System.out.println("[ServerMonitor] Shutdown confirmed — exiting.");
+                    System.exit(0);
+                }
+            }
+        });
         getContentPane().setBackground(BG_WIN);
         setLayout(new BorderLayout(0, 0));
 
