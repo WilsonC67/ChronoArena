@@ -17,7 +17,7 @@ public class SidebarPanel extends JPanel {
     private final JLabel[] otherScoreLabels  = new JLabel[3];
     private final JLabel[] otherStatusLabels = new JLabel[3];
     private final JLabel[] otherItemLabels   = new JLabel[3];
-    private final JLabel[] otherConnLabels   = new JLabel[3];
+
     private final JLabel[] otherTagLabels    = new JLabel[3];
     private final JLabel[] otherHpLabels     = new JLabel[3];  // NEW: numeric HP
     private final JPanel[] otherHpBars       = new JPanel[3];  // NEW: HP bar fill
@@ -323,25 +323,6 @@ public class SidebarPanel extends JPanel {
             otherHpLabels[index].setText("0");
             otherHpLabels[index].setForeground(new Color(220, 60, 60));
             otherDeadLabels[index].setVisible(true);
-        });
-    }
-
-    /**
-     * @param playerId  absolute player id (1-4)
-     * @param connected true = green dot CONNECTED, false = grey dot WAITING
-     */
-    public void updateOtherConnection(int playerId, boolean connected) {
-        if (playerId < 1 || playerId > 4) return;
-        int index = playerIdToSlot[playerId];
-        if (index < 0) return;
-        SwingUtilities.invokeLater(() -> {
-            if (connected) {
-                otherConnLabels[index].setText("● CONNECTED");
-                otherConnLabels[index].setForeground(new Color(80, 160, 80));
-            } else {
-                otherConnLabels[index].setText("○ WAITING");
-                otherConnLabels[index].setForeground(new Color(120, 120, 120));
-            }
         });
     }
 

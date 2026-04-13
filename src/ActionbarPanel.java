@@ -160,9 +160,6 @@ public class ActionbarPanel extends JPanel {
         });
     }
 
-    public void updateItemHeld(String itemType) {
-    }
-
     public void setGameActive(boolean active) {
         // Set the flag IMMEDIATELY (synchronously) - not through SwingUtilities
         this.gameActive = active;

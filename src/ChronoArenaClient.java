@@ -130,7 +130,7 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
                 if (secondsLeft > 0) {
                     isCurrentlyRespawning = true;
                     sidebar.forceSelfDead();
-                    SwingUtilities.invokeLater(() -> hud.showRespawnCountdown(secondsLeft));
+                    SwingUtilities.invokeLater(() -> hud.showRespawnCountdown());
                 } else {
                     isCurrentlyRespawning = false;
                     SwingUtilities.invokeLater(() -> hud.clearRespawnMessage());
@@ -228,8 +228,6 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
                 if (e.getID() == KeyEvent.KEY_PRESSED && e.getKeyCode() == KeyEvent.VK_SPACE) {
                     System.out.println("[Client] Shooting in direction " + lastDx + "," + lastDy);
                     sendUDP(getEffectivePlayerId() + "," + UDP_PORT + ",SHOOT," + lastDx + ".0," + lastDy + ".0,," + udpSeq++);
-                    // Update UI to remove gun icon after shooting
-                    actionbar.updateItemHeld("NONE");
                     return true; // consume the event
                 }
                 return false;
@@ -302,9 +300,6 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
      * Example: connected = {true, true, false, false} → 2/4 players connected.
      */
     public void updateLobby(boolean[] connected) {
-        int count = 0;
-        for (boolean c : connected) if (c) count++;
-        connectedPlayerCount = count;
         SwingUtilities.invokeLater(() -> lobbyPanel.updatePlayers(connected));
     }
 
@@ -325,17 +320,8 @@ public class ChronoArenaClient extends JFrame implements GameEventListener {
     @Override
     public void onGameEnd() {
         System.out.println("=== GAME OVER ===");
-        int connectedCount = 0;
-        for (boolean b : new boolean[]{true, true, true, true}) connectedCount++; // placeholder
-        // Count connected players from lastScores — anyone with a slot in use
-        // The real count comes from the lobby; use a safe default of 2 minimum
-        final int count = Math.max(2, countConnectedPlayers());
-        SwingUtilities.invokeLater(() -> gameOverPanel.show(lastScores, null, count));
+        SwingUtilities.invokeLater(() -> gameOverPanel.show(lastScores, null));
     }
-
-    /** Returns how many player slots are currently active based on last known lobby state. */
-    private int connectedPlayerCount = 0;
-    private int countConnectedPlayers() { return connectedPlayerCount > 0 ? connectedPlayerCount : 2; }
 
     // ── UDP sender ────────────────────────────────────────────────────────────
 

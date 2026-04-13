@@ -631,11 +631,6 @@ public class GameLogic {
         System.out.println("[GameLogic] Round timer started at tick " + currentTick + "!");
     }
 
-    /** Backward-compatible overload — used internally when tick isn't available. */
-    public synchronized void startRound() {
-        startRound(0);
-    }
-
     public long getTimeRemainingMs() {
         if (!roundStarted) return roundDurationSeconds * 1000L;
         return Math.max(0, roundEndTimeMs - System.currentTimeMillis());
