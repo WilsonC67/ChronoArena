@@ -517,6 +517,28 @@ public class GameLogic {
         System.out.printf("[GameLogic] Player %d joined at (%d,%d)%n", playerId, pos[0], pos[1]);
     }
 
+    /**
+     * Atomically checks the player cap, resolves the assigned ID, and registers
+     * the player — all inside one synchronized block so concurrent JOIN requests
+     * cannot both slip past the cap check.
+     *
+     * @param requestedId the ID the client asked for (1-4), or any value outside
+     *                    that range to let the server pick one automatically.
+     * @return the assigned player ID (1-4) on success, or -1 if the server is full.
+     */
+    public synchronized int tryAddPlayer(int requestedId, String name) {
+        if (getConnectedPlayerCount() >= 4) return -1;
+
+        int assignedId = (requestedId >= 1 && requestedId <= 4 && isPlayerIdAvailable(requestedId))
+                ? requestedId
+                : getAvailablePlayerId();
+
+        if (assignedId == -1) return -1;
+
+        addPlayer(assignedId, name);
+        return assignedId;
+    }
+
     public synchronized int getConnectedPlayerCount() {
         int count = 0;
         for (Player p : players.values()) { if (p.connected) count++; }

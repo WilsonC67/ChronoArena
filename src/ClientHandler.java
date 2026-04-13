@@ -46,28 +46,28 @@ public class ClientHandler implements Runnable {
             // Wait for JOIN <playerId>
             String line = reader.readLine();
             if (line != null && line.startsWith("JOIN ")) {
-                int requestedId = Integer.parseInt(line.substring(5).trim());
-
-                    // Enforce 4-player cap
-                if (gameLogic.getConnectedPlayerCount() >= MAX_PLAYERS) {
-                    sendTextLine("REJECT Server full (" + MAX_PLAYERS + " players max)");
+                int requestedId;
+                try {
+                    requestedId = Integer.parseInt(line.substring(5).trim());
+                } catch (NumberFormatException e) {
+                    sendTextLine("REJECT Invalid player ID — expected a number (1-4)");
                     disconnect();
                     return;
                 }
 
-                int assignedId = requestedId >= 1 && requestedId <= MAX_PLAYERS
-                        && gameLogic.isPlayerIdAvailable(requestedId)
-                        ? requestedId
-                        : gameLogic.getAvailablePlayerId();
+                // Atomically check the cap, resolve the ID, and register the player
+                // so that two simultaneous JOIN requests cannot both slip past the limit.
+                int assignedId = gameLogic.tryAddPlayer(requestedId, "Player " + requestedId);
 
                 if (assignedId == -1) {
                     sendTextLine("REJECT Server full (" + MAX_PLAYERS + " players max)");
+                    System.out.printf("[ClientHandler] Rejected connection from %s — server full.%n",
+                            socket.getRemoteSocketAddress());
                     disconnect();
                     return;
                 }
 
                 assignedPlayerId = assignedId;
-                gameLogic.addPlayer(assignedPlayerId, "Player " + assignedPlayerId);
                 gameLogic.setOnReadyCallback(this::broadcastReadyUpdate);
                 gameLogic.setOnVoteCallback(this::broadcastVoteUpdate);
                 gameLogic.setOnAllReadyCallback(this::broadcastCountdownStart);
@@ -81,9 +81,14 @@ public class ClientHandler implements Runnable {
                         assignedPlayerId, socket.getRemoteSocketAddress());
 
             } else {
-                // Display-only connection (no JOIN line sent)
-                sendTextLine("WELCOME 0");
-                System.out.println("[ClientHandler] Display-only client connected.");
+                // Connection arrived without a valid JOIN line — reject immediately.
+                // Previously this fell through as a "display-only" client with id 0,
+                // which caused a phantom Player 0 to appear and block game-start voting.
+                sendTextLine("REJECT Missing JOIN — send: JOIN <playerId> (1-4)");
+                System.out.printf("[ClientHandler] Rejected display-only / bad handshake from %s%n",
+                        socket.getRemoteSocketAddress());
+                disconnect();
+                return;
             }
 
             // Register for frame broadcast first
