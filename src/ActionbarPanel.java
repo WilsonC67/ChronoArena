@@ -168,12 +168,7 @@ public class ActionbarPanel extends JPanel {
         this.gameActive = active;
         
         SwingUtilities.invokeLater(() -> {
-            if (active) {
-                // Game is starting - initialize timer display (will be updated by rotation timer callback)
-                rotationHeaderLabel.setText("ZONE SHUFFLE");
-                rotationTimerLabel.setText("--:--");
-                rotationTimerLabel.setForeground(Style.TEXT_MUTED);
-            } else {
+            if (!active) {
                 // Game is ending - hide all timers immediately
                 rotationHeaderLabel.setText("ZONE SHUFFLE");
                 rotationTimerLabel.setText("--:--");
@@ -183,6 +178,7 @@ public class ActionbarPanel extends JPanel {
                 nextChangeTimerLabel.setForeground(Style.TEXT_MUTED);
                 nextChangeZoneLabel.setText("");
             }
+            // When active, let updateRotationTimer handle the display
         });
     }
 
@@ -295,8 +291,9 @@ public class ActionbarPanel extends JPanel {
      *                  (server runs at 20 ticks/sec)
      */
     public void updateRotationTimer(int ticksLeft) {
-        // Hard gate: never run outside an active game
-        if (!gameActive) {
+        // Timer only displays during active game rounds
+        // Don't reset if game hasn't started yet (ticksLeft will be 0 before roundStarted)
+        if (ticksLeft <= 0) {
             SwingUtilities.invokeLater(() -> {
                 rotationTimerLabel.setText("--:--");
                 rotationTimerLabel.setForeground(Style.TEXT_MUTED);
@@ -304,12 +301,8 @@ public class ActionbarPanel extends JPanel {
             return;
         }
 
-        // Timer has expired — hide it and stop
-        if (ticksLeft <= 0) {
-            SwingUtilities.invokeLater(() -> {
-                rotationTimerLabel.setText("--:--");
-                rotationTimerLabel.setForeground(Style.TEXT_MUTED);
-            });
+        // Only show timer when game is active AND we have ticks remaining
+        if (!gameActive) {
             return;
         }
 
