@@ -1,5 +1,5 @@
-import javax.swing.*;
 import java.awt.*;
+import javax.swing.*;
 
 public class GameOverPanel extends JPanel {
 
@@ -108,7 +108,7 @@ public class GameOverPanel extends JPanel {
     }
 
     /** Called by ChronoArenaClient.onGameEnd() with final scores. */
-    public void show(int[] scores, String[] playerNames, int connectedCount) {
+    public void show(int[] scores, String[] playerNames) {
         for (int i = 0; i < 4 && i < scores.length; i++) {
             scoreLabels[i].setText(scores[i] + " pts");
         }

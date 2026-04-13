@@ -69,56 +69,6 @@ public class Zone implements Serializable {
     }
 
     /**
-     * Returns the 3 default zones matching GamePanel's hardcoded layout.
-     * Call this in GameLogic to initialize the zone list.
-     */
-    public static Zone[] createDefaultZones() {
-        return new Zone[] {
-            new Zone("zone_a", "ZONE A", 2, 5, 4, 3),
-            new Zone("zone_b", "ZONE B", 7, 1, 4, 3),
-            new Zone("zone_c", "ZONE C", 9, 7, 4, 3)
-        };
-    }
-
-
-     // returns 3 zones placed at random positions each match
-    public static Zone[] createRandomZones() {
-        int cols = PropertyFileReader.getColNum();
-        int rows = PropertyFileReader.getRowNum();
-
-        int zW = 4, zH = 3;
-
-        // this is so zones don't sit on the edge
-        int minCol = 1, maxCol = cols - zW - 1;
-        int minRow = 1, maxRow = rows - zH - 1;
-
-        java.util.Random rng = new java.util.Random();
-        java.util.List<int[]> placed = new java.util.ArrayList<>();
-        String[] ids = {"zone_a", "zone_b", "zone_c"};
-        String[] names = {"ZONE A", "ZONE B", "ZONE C"};
-
-        for (int i = 0; i < 3; i++) {
-            int col, row;
-            int attempts = 0;
-
-            // keep trying until we find a spot that doesn't overlap any placed zone
-            do {
-                col = minCol + rng.nextInt(maxCol - minCol + 1);
-                row = minRow + rng.nextInt(maxRow - minRow + 1);
-                attempts++;
-            } while (overlapsAny(col, row, zW, zH, placed) && attempts < 200);
-
-            placed.add(new int[]{col, row, zW, zH});
-        }
-
-        Zone[] zones = new Zone[3];
-        for (int i = 0; i < 3; i++) {
-            zones[i] = new Zone(ids[i], names[i], placed.get(i)[0], placed.get(i)[1], zW, zH);
-        }
-        return zones;
-    }
-
-    /**
      * Creates 3 zones with randomised sizes (width 2–4, height 1–3) and positions.
      * Each zone gets a distinct size so they feel meaningfully different.
      * Sizes used: small (2×1), medium (3×2), large (4×3) — assigned randomly per round.

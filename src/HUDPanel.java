@@ -63,15 +63,10 @@ public class HUDPanel extends JPanel {
         }
     }
 
-    public void showRespawnCountdown(int secondsLeft) {
-        if (secondsLeft > 0) {
-            currentRespawnCountdown = secondsLeft;
-            lastRespawnUpdateTime = System.currentTimeMillis();
-            respawnCountdownLabel.setText("RESPAWNING");
-        } else {
-            respawnCountdownLabel.setText("");
-            currentRespawnCountdown = 0;
-        }
+    public void showRespawnCountdown() {
+        currentRespawnCountdown = 1; // non-zero signals active respawn
+        lastRespawnUpdateTime = System.currentTimeMillis();
+        respawnCountdownLabel.setText("RESPAWNING");
         repaint();
     }
 

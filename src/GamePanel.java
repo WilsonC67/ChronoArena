@@ -437,29 +437,6 @@ public class GamePanel extends JPanel implements Runnable {
         g.setStroke(new BasicStroke(1f));
     }
 
-    // ── HUD overlay in top-left corner of the arena frame ────────────────────
-
-    private void drawHudOverlay(Graphics2D g) throws Exception {
-        if (gameLogic == null) return;
-        int secondsLeft = (int)(gameLogic.getTimeRemainingMs() / 1000);
-        int connected   = (int) gameLogic.getPlayers().values().stream()
-                .filter(p -> p.connected && !p.killed).count();
-
-        String timeStr = String.format("%02d:%02d", secondsLeft / 60, secondsLeft % 60);
-        String connStr = connected + "/4 players";
-
-        g.setColor(new Color(0, 0, 0, 120));
-        g.fillRoundRect(6, 6, 130, 40, 8, 8);
-
-        g.setFont(new Font("SansSerif", Font.BOLD, 15));
-        g.setColor(secondsLeft < 30 ? new Color(220, 60, 60) : Color.WHITE);
-        g.drawString(timeStr, 12, 24);
-
-        g.setFont(new Font("SansSerif", Font.PLAIN, 10));
-        g.setColor(new Color(180, 185, 200));
-        g.drawString(connStr, 12, 40);
-    }
-
     // ── Waiting screen (no players yet) ──────────────────────────────────────
 
     private void drawWaitingScreen(Graphics2D g) {
