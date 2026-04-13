@@ -119,9 +119,9 @@ public class GameLogic {
             }
         }
 
-        updateZones();
-
         if (roundStarted) {
+            updateZones();
+
             for (Item item : items) {
                 if (item.active && --item.ticksLeft <= 0) {
                     item.active = false;
@@ -130,10 +130,11 @@ public class GameLogic {
             }
             int currentSpawnInterval = calculateDynamicSpawnInterval();
             if (tick % currentSpawnInterval == 0) spawnItem();
+
+            if (tick % Zone.POINTS_INTERVAL  == 0) updateZoneScores();
+            if ((tick - roundStartTick) > 0
+                    && (tick - roundStartTick) % ZONE_ROTATION_TICKS == 0) rotateZones();
         }
-        if (tick % Zone.POINTS_INTERVAL  == 0) updateZoneScores();
-        if (roundStarted && (tick - roundStartTick) > 0
-                && (tick - roundStartTick) % ZONE_ROTATION_TICKS == 0) rotateZones();
         beams.removeIf(beam -> --beam.ticksLeft <= 0);
 
         if (System.currentTimeMillis() >= roundEndTimeMs && roundStarted) {
@@ -464,9 +465,9 @@ public class GameLogic {
             int x = 1 + random.nextInt(GRID_COLS - 2);
             int y = 1 + random.nextInt(GRID_ROWS - 2);
             if (isTileOccupiedByItem(x, y)) continue;
-            int roll = random.nextInt(6);
-            Item.Type type = roll < 2 ? Item.Type.ENERGY : roll < 4 ? Item.Type.GUN
-                           : roll == 4 ? Item.Type.SHIELD : Item.Type.SPEED_BOOST;
+            int roll = random.nextInt(10);
+            Item.Type type = roll < 3 ? Item.Type.ENERGY : roll < 7 ? Item.Type.GUN
+                           : roll == 7 ? Item.Type.SHIELD : Item.Type.SPEED_BOOST;
             int value = type == Item.Type.ENERGY
                     ? Item.ENERGY_MIN + random.nextInt(Item.ENERGY_MAX - Item.ENERGY_MIN + 1) : 0;
             items.add(new Item("item_" + (++itemIdCounter), type, x, y, value));
